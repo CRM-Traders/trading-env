@@ -1,0 +1,26 @@
+<div class="bg-gray-900 text-white pt-2 md:pt-4 pb-16 lg:pb-4 px-2 sm:px-4">
+  <div class="flex flex-col lg:flex-row lg:gap-4 space-y-3 lg:space-y-0">
+    <div class="flex-grow mb-0">
+      <!-- Market Watch - Top Section -->
+      <app-market-watch></app-market-watch>
+
+      <!-- Main Content - Responsive Layout -->
+      <div class="flex flex-col lg:flex-row lg:gap-4 space-y-3 lg:space-y-0">
+        <!-- Order Book / Recent Trades - Left Sidebar on Desktop -->
+        <app-order-book
+          class="!w-full lg:max-w-1/3 order-2 lg:order-1 bg-gray-800 rounded-lg p-2 sm:p-3 overflow-hidden mt-3 lg:mt-0"
+        ></app-order-book>
+
+        <!-- Chart Section - Center on Desktop -->
+        <app-chart
+          class="!w-full lg:max-w-2/3 lg:order-2 bg-gray-800 rounded-lg p-2 sm:p-3 sm:pt-1"
+        ></app-chart>
+      </div>
+    </div>
+
+    <!-- Trading Form - Right Sidebar on Desktop -->
+    <app-trading-form
+      class="!w-full lg:max-w-1/4 lg:order-3"
+    ></app-trading-form>
+  </div>
+</div>

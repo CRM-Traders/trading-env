@@ -1,0 +1,47 @@
+<svg width="64px" height="64px" viewBox="0 0 48 48" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" fill="#000000">
+  <defs>
+    <linearGradient id="orangeGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:hsl(19, 77%, 49%);stop-opacity:1" />
+      <stop offset="18%" style="stop-color:hsl(22, 78%, 49%);stop-opacity:1" />
+      <stop offset="26%" style="stop-color:hsl(25, 78%, 49%);stop-opacity:1" />
+      <stop offset="33%" style="stop-color:hsl(27, 79%, 49%);stop-opacity:1" />
+      <stop offset="39%" style="stop-color:hsl(29, 80%, 49%);stop-opacity:1" />
+      <stop offset="44%" style="stop-color:hsl(31, 81%, 49%);stop-opacity:1" />
+      <stop offset="50%" style="stop-color:hsl(33, 82%, 49%);stop-opacity:1" />
+      <stop offset="56%" style="stop-color:hsl(34, 83%, 49%);stop-opacity:1" />
+      <stop offset="61%" style="stop-color:hsl(36, 84%, 49%);stop-opacity:1" />
+      <stop offset="67%" style="stop-color:hsl(37, 85%, 49%);stop-opacity:1" />
+      <stop offset="74%" style="stop-color:hsl(39, 86%, 49%);stop-opacity:1" />
+      <stop offset="82%" style="stop-color:hsl(40, 87%, 49%);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:hsl(41, 89%, 49%);stop-opacity:1" />
+    </linearGradient>
+    <style>
+      .cls-1,.cls-2{
+        fill:none;
+        stroke:url(#orangeGradient);
+        stroke-linejoin:round;
+        stroke-width:2px;
+      }
+      .cls-2{
+        stroke-linecap:round;
+      }
+    </style>
+  </defs>
+  <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+  <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+  <g id="SVGRepo_iconCarrier">
+    <title></title>
+
+    <rect class="cls-2" height="22" width="7" x="4" y="22"></rect>
+    <rect class="cls-2" height="16" width="7" x="15" y="28"></rect>
+    <rect class="cls-2" height="25" width="7" x="26" y="19"></rect>
+    <rect class="cls-2" height="21" width="7" x="37" y="23"></rect>
+    <circle class="cls-2" cx="7" cy="14" r="2"></circle>
+    <circle class="cls-2" cx="19" cy="20" r="2"></circle>
+    <circle class="cls-2" cx="30" cy="11" r="2"></circle>
+    <circle class="cls-2" cx="41" cy="15" r="2"></circle>
+    <line class="cls-2" x1="9" x2="17" y1="15" y2="19"></line>
+    <line class="cls-2" x1="21" x2="28" y1="19" y2="12"></line>
+    <line class="cls-2" x1="32" x2="39" y1="12" y2="14"></line>
+  </g>
+</svg>

@@ -1,0 +1,143 @@
+<!-- Trading Portfolio Page -->
+<div class="bg-gray-900 p-4">
+  <div class="mx-auto">
+    <!-- Portfolio Overview -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+      <!-- Total Portfolio Value -->
+      <div class="lg:col-span-2 bg-gray-800 border border-gray-700/50 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="text-sm text-gray-400">Total Portfolio Value</div>
+            <div class="text-3xl font-bold text-gray-100">$45,247.85</div>
+            <div class="flex items-center space-x-2 mt-1">
+              <div class="text-green-400 font-semibold">+$3,247.85</div>
+              <div class="text-green-400 text-sm">+7.73%</div>
+              <div class="text-xs text-gray-500">24h</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm text-gray-400">Available Balance</div>
+            <div class="text-xl font-semibold text-gray-200">$2,847.30</div>
+            <div class="text-xs text-gray-500">USD</div>
+          </div>
+        </div>
+
+        <!-- Mini Performance Chart Placeholder -->
+        <div class="h-24 bg-gray-700/30 rounded-lg flex items-center justify-center">
+          <div class="text-gray-500 text-sm">Performance Chart</div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="space-y-4">
+        <div class="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">24h P&L</div>
+          <div class="text-xl font-bold text-green-400">+$1,247.50</div>
+          <div class="text-xs text-green-400">+2.84%</div>
+        </div>
+        <div class="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Open Positions</div>
+          <div class="text-xl font-bold text-gray-100">8</div>
+          <div class="text-xs text-green-400">+$358.25</div>
+        </div>
+        <div class="bg-gray-800 border border-gray-700/50 rounded-xl p-4">
+          <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Assets</div>
+          <div class="text-xl font-bold text-gray-100">12</div>
+          <div class="text-xs text-gray-400">Cryptocurrencies</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Holdings -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Asset Holdings -->
+      <div class="bg-gray-800 border border-gray-700/50 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-gray-700/50">
+          <h2 class="text-lg font-semibold text-gray-100">Holdings</h2>
+        </div>
+
+        <!-- Holdings List -->
+        <div class="max-h-80 overflow-y-auto">
+          <div *ngFor="let holding of holdings"
+               class="flex items-center justify-between p-4 border-b border-gray-700/20 hover:bg-gray-700/30 transition-colors">
+            <div class="flex items-center space-x-3">
+              <img src="/assets/icons/{{ holding.symbol.toLowerCase().replace('usd', '') }}.png"
+                   alt="" class="w-8 h-8 rounded-full">
+              <div>
+                <div class="font-semibold text-gray-200 text-sm">{{ holding.symbol }}</div>
+                <div class="text-xs text-gray-400">{{ holding.name }}</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-gray-200 text-sm">{{ holding.amount | number:'1.0-4' }}</div>
+              <div class="text-xs text-gray-400">${{ holding.value | number:'1.0-2' }}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-sm"
+                   [class]="holding.change >= 0 ? 'text-green-400' : 'text-red-400'">
+                {{ holding.change >= 0 ? '+' : '' }}{{ holding.change | number:'1.1-1' }}%
+              </div>
+              <div class="text-xs text-gray-400">{{ holding.allocation | number:'1.1-1' }}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-gray-800 border border-gray-700/50 rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-gray-700/50">
+          <h2 class="text-lg font-semibold text-gray-100">Recent Activity</h2>
+        </div>
+
+        <!-- Activity List -->
+        <div class="max-h-80 overflow-y-auto">
+          <div *ngFor="let activity of recentActivity"
+               class="flex items-center justify-between p-4 border-b border-gray-700/20">
+            <div class="flex items-center space-x-3">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center"
+                   [class]="activity.type === 'buy' ? 'bg-green-950/50 text-green-400' : activity.type === 'sell' ? 'bg-red-950/50 text-red-400' : 'bg-blue-950/50 text-blue-400'">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path *ngIf="activity.type === 'buy'" fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L6.707 7.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                  <path *ngIf="activity.type === 'sell'" fill-rule="evenodd" d="M14.707 12.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  <path *ngIf="activity.type === 'deposit'" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="font-semibold text-gray-200 text-sm">{{ activity.description }}</div>
+                <div class="text-xs text-gray-400">{{ activity.date | date:'MMM dd, HH:mm' }}</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold text-sm"
+                   [class]="activity.amount >= 0 ? 'text-green-400' : 'text-red-400'">
+                {{ activity.amount >= 0 ? '+' : '' }}${{ activity.amount | number:'1.2-2' }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Asset Allocation -->
+    <div class="mt-6 bg-gray-800 border border-gray-700/50 rounded-xl p-6">
+      <h2 class="text-lg font-semibold text-gray-100 mb-4">Asset Allocation</h2>
+
+      <!-- Allocation Bars -->
+      <div class="space-y-3">
+        <div *ngFor="let asset of topAssets" class="flex items-center space-x-4">
+          <div class="w-16 text-sm text-gray-300">{{ asset.symbol }}</div>
+          <div class="flex-1 bg-gray-700/50 rounded-full h-2 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500"
+                 [style.width.%]="asset.allocation">
+            </div>
+          </div>
+          <div class="w-12 text-sm text-gray-300 text-right">{{ asset.allocation | number:'1.0-0' }}%</div>
+          <div class="w-20 text-sm text-gray-400 text-right">${{ asset.value | number:'1.0-0' }}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

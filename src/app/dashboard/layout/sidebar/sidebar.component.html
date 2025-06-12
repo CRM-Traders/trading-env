@@ -1,0 +1,68 @@
+<div
+  *ngIf="isMobile && isSidebarOpen"
+  class="fixed inset-0 bg-[#1a1a1a41] bg-opacity-50 z-40"
+  (click)="onCloseSidebarOnMobile()"
+></div>
+
+<!-- Sidebar -->
+<aside
+  class="bg-slate-800 border-r border-slate-700 flex flex-col transition-all duration-300 z-50 h-screen"
+  [class.w-58]="isSidebarOpen"
+  [class.w-16]="!isSidebarOpen"
+  [class.fixed]="isMobile"
+  [class.h-full]="isMobile"
+  [class.-translate-x-full]="isMobile && !isSidebarOpen"
+  [class.translate-x-0]="isMobile && isSidebarOpen"
+>
+  <!-- Logo Section -->
+  <div class="p-3 border-b border-slate-700">
+    <div class="flex items-center space-x-3">
+      <div
+        class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center"
+      >
+        <span class="text-white font-bold text-lg">G</span>
+      </div>
+      <div *ngIf="isSidebarOpen" class="flex flex-col">
+        <span class="text-white font-bold text-md tracking-wide">GOOEY</span>
+        <span class="text-cyan-400 font-semibold text-xs tracking-wide"
+          >TRADE</span
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 p-2 overflow-y-auto">
+    <ul class="space-y-1">
+      <li *ngFor="let item of navItems" class="relative">
+        <a
+          [routerLink]="item.route"
+          [routerLinkActive]="['text-cyan-400', 'bg-slate-700']"
+          class="w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200 text-left"
+          [class.text-slate-300]="!item.active"
+          [class.hover:bg-slate-700]="!item.active"
+          [class.hover:text-white]="!item.active"
+        >
+          <span
+            class="material-icons text-xl flex-shrink-0"
+            [routerLinkActive]="['text-cyan-400', 'bg-slate-700']"
+            >{{ item.icon }}</span
+          >
+          <span
+            *ngIf="isSidebarOpen"
+            class="font-medium text-sm"
+            [routerLinkActive]="['text-cyan-400', 'bg-slate-700']"
+            >{{ item.label }}</span
+          >
+
+          <!-- Active indicator -->
+          <div
+            *ngIf="isSidebarOpen"
+            [routerLinkActive]="['!block']"
+            class="hidden absolute right-4 w-2 h-2 bg-cyan-400 rounded-full"
+          ></div>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</aside>

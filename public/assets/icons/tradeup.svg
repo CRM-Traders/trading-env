@@ -1,0 +1,37 @@
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 512 512"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="#000000"
+          >
+            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+            <g
+              id="SVGRepo_tracerCarrier"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></g>
+            <g id="SVGRepo_iconCarrier">
+              <title>ionicons-v5-c</title>
+              <polyline
+                points="352 144 464 144 464 256"
+                style="
+                  fill: none;
+                  stroke: #26c6da;
+                  stroke-linecap: square;
+                  stroke-miterlimit: 10;
+                  stroke-width: 32px;
+                "
+              ></polyline>
+              <polyline
+                points="48 368 192 224 288 320 448 160"
+                style="
+                  fill: none;
+                  stroke: #26c6da;
+                  stroke-linecap: square;
+                  stroke-miterlimit: 10;
+                  stroke-width: 32px;
+                "
+              ></polyline>
+            </g>
+          </svg>

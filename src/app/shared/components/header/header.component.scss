@@ -1,0 +1,21 @@
+nav {
+  --scroll-opacity: 0;
+  --scroll-progress: 0;
+
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.nav-transparent {
+    background: transparent;
+  }
+
+  &.nav-scrolled {
+    background: rgba(0, 12, 24, calc(0.5 + var(--scroll-progress) * 0.4));
+    backdrop-filter: blur(calc(10px + var(--scroll-progress) * 10px));
+    box-shadow: 0 4px 32px rgba(0, 0, 0, calc(0.1 + var(--scroll-progress) * 0.2));
+
+    // Logo can scale slightly when scrolled
+    .group svg {
+      transform: scale(calc(1 - var(--scroll-progress) * 0.1));
+    }
+  }
+}

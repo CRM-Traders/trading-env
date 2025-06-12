@@ -1,0 +1,108 @@
+<header
+  class="bg-slate-800 border-b border-slate-700 p-2 flex items-center space-x-4"
+>
+  <button
+    (click)="onToggleSidebar()"
+    class="p-2 cursor-pointer pb-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+  >
+    <span class="material-icons">menu</span>
+  </button>
+
+  <h1 class="text-white text-md font-semibold">{{ title }}</h1>
+
+  <div class="flex-1"></div>
+
+  <!-- Header actions -->
+  <div class="flex items-center space-x-4">
+    <!-- User Profile with Dropdown -->
+    <div class="relative user-dropdown-container cursor-pointer">
+      <button
+        (click)="onToggleUserDropdown()"
+        class="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700 transition-colors"
+        [class.bg-slate-700]="isUserDropdownOpen"
+      >
+        <div
+          class="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-700 rounded-full flex items-center justify-center"
+        >
+          <span class="text-white text-sm font-bold">{{ userInitials }}</span>
+        </div>
+        <div class="hidden md:block">
+          <span class="text-white text-sm font-medium">{{ userName }}</span>
+        </div>
+        <span class="material-icons text-slate-400 text-sm">
+          {{ isUserDropdownOpen ? "keyboard_arrow_up" : "keyboard_arrow_down" }}
+        </span>
+      </button>
+
+      <!-- Dropdown Menu -->
+      <div
+        *ngIf="isUserDropdownOpen"
+        class="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-2 z-50"
+      >
+        <!-- User Info Section -->
+        <div class="px-4 py-3 border-b border-slate-700">
+          <div class="flex items-center space-x-3">
+            <div
+              class="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-700 rounded-full flex items-center justify-center"
+            >
+              <span class="text-white font-bold">{{ userInitials }}</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-white font-medium">{{ userName }}</span>
+              <span class="text-slate-400 text-sm">{{ userEmail }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu Items -->
+        <ul>
+          <li>
+            <a
+              href="#"
+              class="flex items-center space-x-3 px-4 py-2 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <span class="material-icons text-sm">person</span>
+              <span>My Profile</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              class="flex items-center space-x-3 px-4 py-2 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <span class="material-icons text-sm">account_balance_wallet</span>
+              <span>My Wallet</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              class="flex items-center space-x-3 px-4 py-2 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <span class="material-icons text-sm">history</span>
+              <span>Transaction History</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              class="flex items-center space-x-3 px-4 py-2 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <span class="material-icons text-sm">settings</span>
+              <span>Account Settings</span>
+            </a>
+          </li>
+          <li class="border-t border-slate-700 mt-2">
+            <a
+              href="#"
+              class="flex items-center space-x-3 px-4 py-2 text-red-400 hover:bg-slate-700"
+            >
+              <span class="material-icons text-sm">logout</span>
+              <span>Logout</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,159 @@
+<div
+  class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-22"
+>
+  <app-auth-header></app-auth-header>
+  <!-- Error Content -->
+  <main
+    class="min-h-[calc(100vh-100px)] flex items-center justify-center px-4 py-8"
+  >
+    <div class="max-w-6xl w-full grid lg:grid-cols-2 gap-16 items-center">
+      <!-- Error Info -->
+      <div class="max-w-lg mx-auto lg:mx-0">
+        <!-- Error Code Display -->
+        <div class="flex items-center gap-4 mb-8">
+          <span
+            class="text-6xl md:text-7xl font-black bg-gradient-to-r from-cyan-400 to-cyan-600 bg-clip-text text-transparent leading-none"
+          >
+            {{ errorCode }}
+          </span>
+          <div class="text-cyan-400 opacity-80">
+            <svg
+              width="60"
+              height="60"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M8 21L9.5 17.5L12 21L14.5 17.5L16 21"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <div class="mb-8">
+          <h1
+            class="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight"
+          >
+            {{ errorMessage }}
+          </h1>
+          <p class="text-lg text-slate-300 leading-relaxed mb-6">
+            {{ errorDescription }}
+          </p>
+
+          <!-- Market Status -->
+          <div
+            class="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-3 mb-8"
+          >
+            <div
+              class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"
+            ></div>
+            <span class="text-emerald-400 text-sm font-medium"
+              >Markets are still active • Trading continues</span
+            >
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-3 mb-8">
+          <button
+            (click)="goHome()"
+            class="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-6 py-3 rounded-lg font-semibold transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-500/25 flex items-center gap-2"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M3 9L12 2L21 9V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Back to Home Page
+          </button>
+
+          <button
+            (click)="goBack()"
+            class="bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M19 12H5M12 19L5 12L12 5"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Go Back
+          </button>
+
+          <button
+            (click)="refreshPage()"
+            class="bg-transparent hover:bg-white/5 border border-transparent hover:border-slate-600 text-slate-300 hover:text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M1 4V10H7M23 20V14H17"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M20.49 9C20.0373 7.83924 19.3731 6.78773 18.5355 5.9C17.4882 4.79687 16.1997 4.02279 14.7831 3.64823C13.3665 3.27368 11.8781 3.31132 10.4815 3.75781C9.08497 4.2043 7.83108 4.04162 6.74999 5.12C5.99999 5.87 5.44999 6.78 5.16999 7.78"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Refresh Page
+          </button>
+        </div>
+
+        <!-- Help Section -->
+        <div class="pt-8 border-t border-slate-700">
+          <p class="text-slate-400 text-sm mb-2">
+            Having trouble? Our support team is available 24/7 to help you get
+            back to trading.
+          </p>
+          <a
+            href="/contact"
+            class="text-cyan-400 hover:text-cyan-300 font-medium text-sm transition-colors"
+          >
+            Contact Support →
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>

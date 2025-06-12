@@ -1,0 +1,91 @@
+<nav
+  class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 w-screen"
+  [class.nav-scrolled]="isScrolled"
+  [class.nav-transparent]="!isScrolled"
+>
+  <div
+    class="max-w-[1200px] mx-auto p-4 lg:px-0 flex items-center justify-between"
+  >
+    <!-- Logo Section -->
+    <div class="flex items-center">
+      <a href="/" class="flex items-center gap-3 no-underline group">
+        <div class="flex items-center justify-center">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 32 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            class="transition-transform duration-300 group-hover:scale-110"
+          >
+            <rect width="32" height="32" rx="8" fill="url(#gradient)" />
+            <path d="M8 12L16 8L24 12L16 24L8 12Z" fill="white" opacity="0.9" />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color: #00d4ff" />
+                <stop offset="100%" style="stop-color: #0099cc" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span
+          class="text-xl border-l-1 border-white ps-2 font-bold bg-gradient-to-r from-cyan-400 to-white bg-clip-text text-transparent tracking-wide"
+        >
+          GOOEY <br />
+          TRADE
+        </span>
+      </a>
+    </div>
+
+    <!-- Desktop Menu -->
+    <div class="md:flex items-center gap-8">
+      <ul class="hidden md:flex items-center list-none m-0 p-0 gap-8">
+        <li>
+          <a
+            href="#about"
+            class="text-white/80 no-underline text-base font-medium transition-all duration-300 relative px-3 hover:text-cyan-400 group"
+            (click)="onNavItemClick()"
+          >
+            About
+            <span
+              class="absolute -bottom-3 left-0 w-0 h-0.5 bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-300 group-hover:w-full"
+            ></span>
+          </a>
+        </li>
+        <li>
+          <a
+            href="#reviews"
+            class="text-white/80 no-underline text-base font-medium transition-all duration-300 relative px-3 hover:text-cyan-400 group"
+            (click)="onNavItemClick()"
+          >
+            Reviews
+            <span
+              class="absolute -bottom-3 left-0 w-0 h-0.5 bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-300 group-hover:w-full"
+            ></span>
+          </a>
+        </li>
+        <li>
+          <a
+            href="#contact"
+            class="text-white/80 no-underline text-base font-medium transition-all duration-300 relative px-3 hover:text-cyan-400 group"
+            (click)="onNavItemClick()"
+          >
+            Contact
+            <span
+              class="absolute -bottom-3 left-0 w-0 h-0.5 bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all duration-300 group-hover:w-full"
+            ></span>
+          </a>
+        </li>
+      </ul>
+
+      <div>
+        <a
+          href="/sign-in"
+          class="bg-transparent border-1 border-cyan-400 text-white px-6 py-2 rounded-md no-underline text-base font-semibold transition-all duration-300 relative overflow-hidden hover:bg-cyan-400/10 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-400/30 group"
+        >
+          <span class="relative z-10">Get Early Access</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>

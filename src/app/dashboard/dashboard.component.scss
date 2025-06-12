@@ -1,0 +1,303 @@
+// Variables
+$primary-dark: #0f1419;
+$secondary-dark: #1a202c;
+$sidebar-dark: #141b26;
+$accent-cyan: #00d4ff;
+$accent-blue: #1e40af;
+$text-primary: #ffffff;
+$text-secondary: #a0aec0;
+$success-green: #48bb78;
+$border-color: #2d3748;
+
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  background: $primary-dark;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+// Sidebar Styles
+.sidebar {
+  width: 280px;
+  background: $sidebar-dark;
+  border-right: 1px solid $border-color;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  position: relative;
+  z-index: 10;
+
+  &.closed {
+    width: 70px;
+  }
+}
+
+.logo-section {
+  padding: 24px 20px;
+  border-bottom: 1px solid $border-color;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, $accent-cyan, $accent-blue);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brand-name {
+  color: $text-primary;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.brand-sub {
+  color: $accent-cyan;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.user-section {
+  padding: 20px;
+  border-bottom: 1px solid $border-color;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: $success-green;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  color: $text-primary;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.user-balance {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.balance-value {
+  color: $success-green;
+  font-weight: 600;
+}
+
+.balance-currency {
+  color: $text-secondary;
+}
+
+.nav-section {
+  flex: 1;
+  padding: 20px 0;
+  overflow-y: auto;
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
+  margin-bottom: 4px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &.active {
+    background: rgba(0, 212, 255, 0.1);
+
+    .nav-link {
+      color: $accent-cyan;
+    }
+  }
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  color: $text-secondary;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  gap: 12px;
+  cursor: pointer;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.nav-icon {
+  font-size: 20px;
+  min-width: 20px;
+}
+
+.nav-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+// Main Content Styles
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: $secondary-dark;
+  transition: margin-left 0.3s ease;
+  overflow: hidden;
+
+  &.sidebar-closed {
+    margin-left: 0;
+  }
+}
+
+.header {
+  background: $sidebar-dark;
+  border-bottom: 1px solid $border-color;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: $text-primary;
+  }
+
+  .material-icons {
+    font-size: 20px;
+  }
+}
+
+.page-title {
+  color: $text-primary;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.content-area {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.dashboard-content {
+  height: 100%;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 50%;
+  text-align: center;
+
+  h2 {
+    color: $text-primary;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  p {
+    color: $text-secondary;
+    font-size: 16px;
+    margin: 0;
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+
+    &:not(.closed) {
+      transform: translateX(0);
+    }
+
+    &.closed {
+      width: 280px;
+      transform: translateX(-100%);
+    }
+  }
+
+  .main-content {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sidebar-toggle {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar.closed {
+    transform: translateX(0);
+  }
+}
+
+// Material Icons
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
