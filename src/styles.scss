@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@use "tailwindcss" as *;
 
 * {
   box-sizing: border-box;

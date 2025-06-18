@@ -1,13 +1,13 @@
 import { Routes } from '@angular/router';
 import { ErrorComponent } from './shared/error/error.component';
+import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
     path: '',
     loadChildren: () =>
-      import('./dashboard/dashboard.routes').then(
-        (m) => m.dashboardRoutes
-      ),
+      import('./dashboard/dashboard.routes').then((m) => m.dashboardRoutes),
+    canActivate: [authGuard],
   },
   {
     path: '404',
