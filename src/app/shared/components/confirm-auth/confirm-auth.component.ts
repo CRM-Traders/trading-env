@@ -1,8 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, of } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { CommonModule } from '@angular/common';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-confirm-auth',
@@ -16,6 +16,7 @@ export class ConfirmAuthComponent implements OnInit {
   private _route = inject(ActivatedRoute);
   private _router = inject(Router);
 
+  // Signals for reactive state management
   readonly isLoading = signal<boolean>(true);
   readonly isSuccess = signal<boolean>(false);
   readonly errorMessage = signal<string>('');
@@ -26,7 +27,7 @@ export class ConfirmAuthComponent implements OnInit {
   }
 
   private processAuthConfirmation(): void {
-    const authKey = this._route.snapshot.queryParams['authKey'];
+    const authKey = this._route.snapshot.paramMap.get('id');
 
     if (!authKey) {
       this.handleError('No authentication key provided.');
@@ -35,27 +36,17 @@ export class ConfirmAuthComponent implements OnInit {
 
     this.statusMessage.set('Validating authentication token...');
 
-    this._authService
-      .confirmAuth(authKey)
-      .pipe(
-        catchError((error) => {
-          this.handleError(
-            error.message || 'Authentication failed. Please try again.'
-          );
-          return of(null);
-        })
-      )
-      .subscribe({
-        next: (authResponse) => {
-          if (authResponse) {
-            this.handleSuccess();
-          }
-        },
-        error: (error) => {
-          console.error('Unexpected error during auth confirmation:', error);
-          this.handleError('An unexpected error occurred. Please try again.');
-        },
-      });
+    this._authService.confirmAuth(authKey).subscribe({
+      next: (authResponse) => {
+        if (authResponse) {
+          this.handleSuccess();
+        }
+      },
+      error: (error) => {
+        console.error('Unexpected error during auth confirmation:', error);
+        this.handleError('An unexpected error occurred. Please try again.');
+      },
+    });
   }
 
   private handleSuccess(): void {
@@ -74,14 +65,12 @@ export class ConfirmAuthComponent implements OnInit {
     this.errorMessage.set(message);
     this.statusMessage.set('Authentication failed');
 
-    // Redirect to login page after a delay
     setTimeout(() => {
-      this._router.navigate(['/auth/login']);
+      window.location.href = environment.redirectUrl;
     }, 3000);
   }
 
-  // Method to manually redirect to login (for user action)
   redirectToLogin(): void {
-    this._router.navigate(['/auth/login']);
+    window.location.href = environment.redirectUrl;
   }
 }

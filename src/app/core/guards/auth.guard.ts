@@ -10,8 +10,6 @@ export const authGuard: CanActivateFn = (): boolean => {
     return true;
   }
 
-  const currentUrl = encodeURIComponent(window.location.href);
-
   window.location.href = environment.redirectUrl;
 
   return false;
