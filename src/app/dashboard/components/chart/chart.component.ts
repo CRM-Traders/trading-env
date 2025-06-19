@@ -692,6 +692,11 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
             borderVisible: false,
             wickUpColor: '#10B981',
             wickDownColor: '#EF4444',
+            priceFormat: {
+              type: 'price',
+              precision: 8,
+              minMove: 0.00000001,
+            },
           });
           this.candlestickSeries.setData(data.candles);
         }
@@ -702,6 +707,11 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
           this.lineSeries = this.mainChart.addSeries(LineSeries, {
             color: '#3B82F6',
             lineWidth: 2,
+            priceFormat: {
+              type: 'price',
+              precision: 8,
+              minMove: 0.00000001,
+            },
           });
           this.lineSeries.setData(data.line);
         }
@@ -714,6 +724,11 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
             bottomColor: 'rgba(59, 130, 246, 0.04)',
             lineColor: '#3B82F6',
             lineWidth: 2,
+            priceFormat: {
+              type: 'price',
+              precision: 8,
+              minMove: 0.00000001,
+            },
           });
           this.areaSeries.setData(data.line);
         }
