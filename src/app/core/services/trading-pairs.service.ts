@@ -255,7 +255,6 @@ export class TradingPairsService {
   }
 
   private handleError(message: string, error: any): Observable<never> {
-    console.error(message, error);
     const errorMessage = error?.error?.message || error?.message || message;
     this.errorSubject.next(errorMessage);
     return throwError(() => new Error(errorMessage));

@@ -124,16 +124,11 @@ export class SignalRService implements OnDestroy {
       })
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (retryContext) => {
-          // Exponential backoff: 2s, 4s, 8s, 16s, then 30s max
           const delay = Math.min(
             1000 * Math.pow(2, retryContext.previousRetryCount),
             30000
           );
-          console.log(
-            `Reconnection attempt ${
-              retryContext.previousRetryCount + 1
-            } in ${delay}ms`
-          );
+
           return delay;
         },
       })
@@ -151,7 +146,6 @@ export class SignalRService implements OnDestroy {
     if (!this.connection) return;
 
     this.connection.onclose((error) => {
-      console.warn('SignalR connection closed', error);
       this.connectionStateSubject.next(ConnectionState.Disconnected);
       this.activeTickerSubscriptions.clear();
       this.activeTradeSubscriptions.clear();
@@ -162,12 +156,10 @@ export class SignalRService implements OnDestroy {
     });
 
     this.connection.onreconnecting((error) => {
-      console.warn('SignalR reconnecting', error);
       this.connectionStateSubject.next(ConnectionState.Reconnecting);
     });
 
     this.connection.onreconnected((connectionId) => {
-      console.log('SignalR reconnected', connectionId);
       this.connectionStateSubject.next(ConnectionState.Connected);
       // Resubscribe to active subscriptions
       this.resubscribeToActiveStreams();
@@ -194,19 +186,13 @@ export class SignalRService implements OnDestroy {
     // Subscription confirmations
     this.connection.on(
       'SubscriptionConfirmed',
-      (data: { type: string; symbol: string }) => {
-        console.log(`Subscription confirmed: ${data.type} for ${data.symbol}`);
-      }
+      (data: { type: string; symbol: string }) => {}
     );
 
     // Subscription errors
     this.connection.on(
       'SubscriptionError',
       (data: { type: string; symbol: string; error: string }) => {
-        console.error(
-          `Subscription error: ${data.type} for ${data.symbol}`,
-          data.error
-        );
         this.errorSubject.next(
           `Failed to subscribe to ${data.type} for ${data.symbol}: ${data.error}`
         );
@@ -216,11 +202,7 @@ export class SignalRService implements OnDestroy {
     // Unsubscription confirmations
     this.connection.on(
       'UnsubscriptionConfirmed',
-      (data: { type: string; symbol: string }) => {
-        console.log(
-          `Unsubscription confirmed: ${data.type} for ${data.symbol}`
-        );
-      }
+      (data: { type: string; symbol: string }) => {}
     );
   }
 
@@ -239,15 +221,7 @@ export class SignalRService implements OnDestroy {
       this.connectionStateSubject.next(ConnectionState.Connecting);
       await this.connection.start();
       this.connectionStateSubject.next(ConnectionState.Connected);
-      console.log('SignalR connection established');
     } catch (error) {
-      console.error('Failed to start SignalR connection', error);
-      this.connectionStateSubject.next(ConnectionState.Error);
-      this.errorSubject.next(
-        `Failed to connect: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
       throw error;
     }
   }
@@ -260,10 +234,7 @@ export class SignalRService implements OnDestroy {
 
     try {
       await this.connection.stop();
-      console.log('SignalR connection stopped');
-    } catch (error) {
-      console.error('Error stopping SignalR connection', error);
-    }
+    } catch (error) {}
   }
 
   /**
@@ -273,16 +244,13 @@ export class SignalRService implements OnDestroy {
     await this.ensureConnected();
 
     if (this.activeTickerSubscriptions.has(symbol)) {
-      console.log(`Already subscribed to ticker for ${symbol}`);
       return;
     }
 
     try {
       await this.connection!.invoke('SubscribeToTicker', symbol);
       this.activeTickerSubscriptions.add(symbol);
-      console.log(`Subscribed to ticker for ${symbol}`);
     } catch (error) {
-      console.error(`Failed to subscribe to ticker for ${symbol}`, error);
       this.errorSubject.next(`Failed to subscribe to ticker for ${symbol}`);
       throw error;
     }
@@ -303,10 +271,7 @@ export class SignalRService implements OnDestroy {
     try {
       await this.connection.invoke('UnsubscribeFromTicker', symbol);
       this.activeTickerSubscriptions.delete(symbol);
-      console.log(`Unsubscribed from ticker for ${symbol}`);
-    } catch (error) {
-      console.error(`Failed to unsubscribe from ticker for ${symbol}`, error);
-    }
+    } catch (error) {}
   }
 
   /**
@@ -316,16 +281,13 @@ export class SignalRService implements OnDestroy {
     await this.ensureConnected();
 
     if (this.activeTradeSubscriptions.has(symbol)) {
-      console.log(`Already subscribed to trades for ${symbol}`);
       return;
     }
 
     try {
       await this.connection!.invoke('SubscribeToTrades', symbol);
       this.activeTradeSubscriptions.add(symbol);
-      console.log(`Subscribed to trades for ${symbol}`);
     } catch (error) {
-      console.error(`Failed to subscribe to trades for ${symbol}`, error);
       this.errorSubject.next(`Failed to subscribe to trades for ${symbol}`);
       throw error;
     }
@@ -346,10 +308,7 @@ export class SignalRService implements OnDestroy {
     try {
       await this.connection.invoke('UnsubscribeFromTrades', symbol);
       this.activeTradeSubscriptions.delete(symbol);
-      console.log(`Unsubscribed from trades for ${symbol}`);
-    } catch (error) {
-      console.error(`Failed to unsubscribe from trades for ${symbol}`, error);
-    }
+    } catch (error) {}
   }
 
   /**

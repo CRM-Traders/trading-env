@@ -115,15 +115,8 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
         })
       )
       .subscribe({
-        next: () => {
-          console.log(
-            'Successfully loaded data for pair',
-            this.selectedPair?.symbol
-          );
-        },
-        error: (error) => {
-          console.error('Failed to load data for pair:', error);
-        },
+        next: () => {},
+        error: (error) => {},
       });
 
     // Subscribe to real-time ticker data
@@ -159,7 +152,6 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
 
       this.isLoadingHistoricalData = false;
     } catch (error) {
-      console.error('Failed to load complete data for pair:', error);
       this.isLoadingHistoricalData = false;
     }
   }
