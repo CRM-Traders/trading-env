@@ -10,6 +10,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'auth/confirm/:authKey',
+    loadComponent: () =>
+      import('./shared/components/confirm-auth/confirm-auth.component').then(
+        (m) => m.ConfirmAuthComponent
+      ),
+  },
+  {
     path: '404',
     component: ErrorComponent,
     data: {

@@ -111,6 +111,20 @@ export class AuthService implements OnDestroy {
       );
   }
 
+  confirmAuth(authKey: string): Observable<AuthResponse> {
+    return this._http
+      .get<AuthResponse>(`identity/api/auth/confirm-auth?authKey=${authKey}`)
+      .pipe(
+        tap((response) => {
+          this.handleAuthResponse(response);
+          this.initTokenRefresh();
+        }),
+        catchError((error) =>
+          throwError(() => new Error('Authentication token validation failed.'))
+        )
+      );
+  }
+
   hasRole(requiredRole: string): boolean {
     const userRole = this.getRole();
     return userRole === requiredRole;
