@@ -1,4 +1,3 @@
-// src/app/core/services/trading-pairs.service.ts
 import { Injectable, inject } from '@angular/core';
 import { Observable, BehaviorSubject, throwError } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -65,6 +64,15 @@ export interface OrderBookData {
   asks: number[][];
 }
 
+export interface HistoricalDataPoint {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -108,7 +116,6 @@ export class TradingPairsService {
           this.tradingPairsSubject.next(pairs);
           this.loadingSubject.next(false);
 
-          // Set default pair if none selected
           if (!this.selectedPairSubject.value && pairs.length > 0) {
             const defaultPair =
               pairs.find((p) => p.symbol === 'BTCUSDT') || pairs[0];
@@ -137,7 +144,7 @@ export class TradingPairsService {
 
   public getAllTickers(): Observable<TickerData[]> {
     return this.httpService
-      .get<TickerData[]>('api/binance/tickers')
+      .get<TickerData[]>('binance/api/binance/tickers')
       .pipe(
         catchError((error) =>
           this.handleError('Failed to fetch all tickers', error)
@@ -156,6 +163,25 @@ export class TradingPairsService {
       .pipe(
         catchError((error) =>
           this.handleError(`Failed to fetch order book for ${symbol}`, error)
+        )
+      );
+  }
+
+  public getHistoricalData(
+    symbol: string,
+    interval: string = '1h',
+    limit: number = 500
+  ): Observable<HistoricalDataPoint[]> {
+    return this.httpService
+      .get<HistoricalDataPoint[]>(
+        `binance/api/binance/historical-data/${symbol}?interval=${interval}&limit=${limit}`
+      )
+      .pipe(
+        catchError((error) =>
+          this.handleError(
+            `Failed to fetch historical data for ${symbol}`,
+            error
+          )
         )
       );
   }
@@ -205,7 +231,6 @@ export class TradingPairsService {
       .sort((a, b) => {
         if (a.quoteAsset === 'USDT' && b.quoteAsset !== 'USDT') return -1;
         if (b.quoteAsset === 'USDT' && a.quoteAsset !== 'USDT') return 1;
-
         return a.symbol.localeCompare(b.symbol);
       });
   }

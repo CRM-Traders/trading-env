@@ -1,4 +1,3 @@
-// src/app/dashboard/components/chart/chart.component.ts
 import { CommonModule } from '@angular/common';
 import {
   Component,
@@ -10,7 +9,7 @@ import {
   inject,
 } from '@angular/core';
 import { Subject } from 'rxjs';
-import { takeUntil, filter, debounceTime } from 'rxjs/operators';
+import { takeUntil, filter, debounceTime, switchMap } from 'rxjs/operators';
 import {
   createChart,
   IChartApi,
@@ -27,6 +26,7 @@ import {
 import {
   TradingPairsService,
   TradingPair,
+  HistoricalDataPoint,
 } from '../../../core/services/trading-pairs.service';
 import {
   SignalRService,
@@ -77,6 +77,7 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
   // Chart data management
   private chartDataCache = new Map<string, ChartData>();
   private currentPrice = 0;
+  private isLoadingHistoricalData = false;
 
   // Data aggregation for candlesticks
   private currentCandle: CandlestickData | null = null;
@@ -102,12 +103,27 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
   private setupDataSubscriptions(): void {
     // Subscribe to selected pair changes
     this.tradingPairsService.selectedPair$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((pair) => {
-        if (pair && pair.symbol !== this.selectedPair?.symbol) {
-          this.selectedPair = pair;
-          this.onPairChanged();
-        }
+      .pipe(
+        takeUntil(this.destroy$),
+        filter((pair) => pair !== null),
+        switchMap((pair) => {
+          if (pair && pair.symbol !== this.selectedPair?.symbol) {
+            this.selectedPair = pair;
+            return this.loadCompleteDataForPair(pair);
+          }
+          return [];
+        })
+      )
+      .subscribe({
+        next: () => {
+          console.log(
+            'Successfully loaded data for pair',
+            this.selectedPair?.symbol
+          );
+        },
+        error: (error) => {
+          console.error('Failed to load data for pair:', error);
+        },
       });
 
     // Subscribe to real-time ticker data
@@ -115,7 +131,7 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
       .pipe(
         takeUntil(this.destroy$),
         filter((data) => data.symbol === this.selectedPair?.symbol),
-        debounceTime(100) // Prevent too frequent updates
+        debounceTime(100)
       )
       .subscribe((tickerData) => {
         this.updateMarketStats(tickerData);
@@ -123,23 +139,28 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
       });
   }
 
-  private async onPairChanged(): Promise<void> {
-    if (!this.selectedPair) return;
+  private async loadCompleteDataForPair(pair: TradingPair): Promise<void> {
+    if (!pair) return;
 
     try {
-      // Initialize empty chart data for the new pair
-      this.initializeEmptyChartData(this.selectedPair.symbol);
+      this.isLoadingHistoricalData = true;
 
-      // Load historical data from API
-      await this.loadHistoricalDataFromAPI(this.selectedPair.symbol);
+      // Initialize empty chart data
+      this.initializeEmptyChartData(pair.symbol);
+
+      // Load historical data
+      await this.loadHistoricalDataFromAPI(pair.symbol);
 
       // Setup real-time subscription
-      await this.subscribeToRealTimeData(this.selectedPair.symbol);
+      await this.subscribeToRealTimeData(pair.symbol);
 
-      // Update chart with data
+      // Update chart with loaded data
       this.updateChart();
+
+      this.isLoadingHistoricalData = false;
     } catch (error) {
-      console.error('Failed to setup data for new pair:', error);
+      console.error('Failed to load complete data for pair:', error);
+      this.isLoadingHistoricalData = false;
     }
   }
 
@@ -155,52 +176,121 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
 
   private async loadHistoricalDataFromAPI(symbol: string): Promise<void> {
     try {
-      // Load initial ticker data to get current price
+      const interval = this.getIntervalString();
+      const limit = 500;
+
+      // Fetch historical data
+      const historicalData = await this.tradingPairsService
+        .getHistoricalData(symbol, interval, limit)
+        .toPromise();
+
+      if (historicalData && historicalData.length > 0) {
+        this.processHistoricalData(symbol, historicalData);
+      }
+
+      // Fetch current ticker data for real-time stats
       const tickerData = await this.tradingPairsService
         .getTickerData(symbol)
         .toPromise();
+
       if (tickerData) {
         this.currentPrice = tickerData.lastPrice;
         this.dailyVolume = tickerData.quoteVolume;
         this.dailyHigh = tickerData.highPrice;
         this.dailyLow = tickerData.lowPrice;
-
-        // Create initial data point from ticker
-        this.createInitialDataFromTicker(symbol, tickerData);
       }
     } catch (error) {
       console.error(`Failed to load historical data for ${symbol}:`, error);
+      // Create fallback data if API fails
+      this.createFallbackData(symbol);
     }
   }
 
-  private createInitialDataFromTicker(symbol: string, tickerData: any): void {
+  private processHistoricalData(
+    symbol: string,
+    historicalData: HistoricalDataPoint[]
+  ): void {
     const cachedData = this.chartDataCache.get(symbol);
     if (!cachedData) return;
 
-    const currentTime = Math.floor(Date.now() / 1000) as UTCTimestamp;
+    // Process candlestick data
+    cachedData.candles = historicalData.map((point) => ({
+      time: point.time as UTCTimestamp,
+      open: point.open,
+      high: point.high,
+      low: point.low,
+      close: point.close,
+    }));
 
-    // Create initial line data point
-    cachedData.line.push({
-      time: currentTime,
-      value: tickerData.lastPrice,
-    });
+    // Process line data
+    cachedData.line = historicalData.map((point) => ({
+      time: point.time as UTCTimestamp,
+      value: point.close,
+    }));
 
-    // Create initial candle
-    this.currentCandle = {
-      time: currentTime,
-      open: tickerData.openPrice,
-      high: tickerData.highPrice,
-      low: tickerData.lowPrice,
-      close: tickerData.lastPrice,
-    };
+    // Process volume data
+    cachedData.volume = historicalData.map((point) => ({
+      time: point.time as UTCTimestamp,
+      value: point.volume,
+      color: point.close >= point.open ? '#10B981' : '#EF4444',
+    }));
 
-    // Create initial volume data
-    cachedData.volume.push({
-      time: currentTime,
-      value: tickerData.volume,
-      color:
-        tickerData.lastPrice >= tickerData.openPrice ? '#10B981' : '#EF4444',
-    });
+    // Set the last data point as current candle
+    const lastCandle = cachedData.candles[cachedData.candles.length - 1];
+    if (lastCandle) {
+      this.currentCandle = { ...lastCandle };
+      this.candleStartTime = lastCandle.time as number;
+      this.currentPrice = lastCandle.close;
+    }
+  }
+
+  private createFallbackData(symbol: string): void {
+    const cachedData = this.chartDataCache.get(symbol);
+    if (!cachedData) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const timeframeMinutes = this.getTimeframeMinutes();
+    const interval = timeframeMinutes * 60;
+    const basePrice = 45000; // Fallback price for demonstration
+
+    // Generate 100 fallback data points
+    for (let i = 99; i >= 0; i--) {
+      const time = (now - i * interval) as UTCTimestamp;
+      const price = basePrice + (Math.random() - 0.5) * 2000;
+      const open = price + (Math.random() - 0.5) * 100;
+      const high = Math.max(open, price) + Math.random() * 50;
+      const low = Math.min(open, price) - Math.random() * 50;
+      const close = price;
+      const volume = Math.random() * 1000000;
+
+      cachedData.candles.push({
+        time,
+        open,
+        high,
+        low,
+        close,
+      });
+
+      cachedData.line.push({
+        time,
+        value: close,
+      });
+
+      cachedData.volume.push({
+        time,
+        value: volume,
+        color: close >= open ? '#10B981' : '#EF4444',
+      });
+    }
+
+    // Set current price and stats
+    const lastCandle = cachedData.candles[cachedData.candles.length - 1];
+    if (lastCandle) {
+      this.currentPrice = lastCandle.close;
+      this.dailyHigh = Math.max(...cachedData.candles.map((c) => c.high));
+      this.dailyLow = Math.min(...cachedData.candles.map((c) => c.low));
+      this.dailyVolume = cachedData.volume.reduce((sum, v) => sum + v.value, 0);
+    }
   }
 
   private async subscribeToRealTimeData(symbol: string): Promise<void> {
@@ -260,11 +350,25 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
     const cachedData = this.chartDataCache.get(this.selectedPair.symbol);
     if (!cachedData) return;
 
-    // Add new line data point
-    cachedData.line.push({
-      time: timestamp,
-      value: price,
-    });
+    // Update the last line data point or add a new one
+    if (cachedData.line.length > 0) {
+      const lastPoint = cachedData.line[cachedData.line.length - 1];
+      if (Math.abs((lastPoint.time as number) - (timestamp as number)) < 60) {
+        // Update existing point if within 1 minute
+        lastPoint.value = price;
+      } else {
+        // Add new point
+        cachedData.line.push({
+          time: timestamp,
+          value: price,
+        });
+      }
+    } else {
+      cachedData.line.push({
+        time: timestamp,
+        value: price,
+      });
+    }
 
     // Keep only last 1000 points for performance
     if (cachedData.line.length > 1000) {
@@ -290,8 +394,9 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
     // Check if we need to create a new candle or update existing one
     if (!this.currentCandle || this.candleStartTime !== candleTime) {
       // Finalize previous candle if it exists
-      if (this.currentCandle) {
-        cachedData.candles.push(this.currentCandle);
+      if (this.currentCandle && cachedData.candles.length > 0) {
+        const lastCandleIndex = cachedData.candles.length - 1;
+        cachedData.candles[lastCandleIndex] = { ...this.currentCandle };
       }
 
       // Start new candle
@@ -303,16 +408,30 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
         close: price,
       };
       this.candleStartTime = candleTime;
+
+      // Add new candle to the array
+      if (
+        cachedData.candles.length === 0 ||
+        cachedData.candles[cachedData.candles.length - 1].time !== candleTime
+      ) {
+        cachedData.candles.push({ ...this.currentCandle });
+      }
     } else {
       // Update existing candle
       this.currentCandle.high = Math.max(this.currentCandle.high, price);
       this.currentCandle.low = Math.min(this.currentCandle.low, price);
       this.currentCandle.close = price;
+
+      // Update the last candle in the array
+      if (cachedData.candles.length > 0) {
+        const lastCandleIndex = cachedData.candles.length - 1;
+        cachedData.candles[lastCandleIndex] = { ...this.currentCandle };
+      }
     }
 
-    // Keep only last 500 candles for performance
-    if (cachedData.candles.length > 500) {
-      cachedData.candles = cachedData.candles.slice(-500);
+    // Keep only last 1000 candles for performance
+    if (cachedData.candles.length > 1000) {
+      cachedData.candles = cachedData.candles.slice(-1000);
     }
   }
 
@@ -347,9 +466,9 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
           : '#EF4444';
     }
 
-    // Keep only last 500 volume points
-    if (cachedData.volume.length > 500) {
-      cachedData.volume = cachedData.volume.slice(-500);
+    // Keep only last 1000 volume points
+    if (cachedData.volume.length > 1000) {
+      cachedData.volume = cachedData.volume.slice(-1000);
     }
   }
 
@@ -363,29 +482,24 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
       // Update main chart series based on selected type
       switch (this.selectedChartType) {
         case 'candlestick':
-          if (this.candlestickSeries) {
-            // Add current candle to display if it exists
-            const candlesToDisplay = [...cachedData.candles];
-            if (this.currentCandle) {
-              candlesToDisplay.push(this.currentCandle);
-            }
-            this.candlestickSeries.setData(candlesToDisplay);
+          if (this.candlestickSeries && cachedData.candles.length > 0) {
+            this.candlestickSeries.setData(cachedData.candles);
           }
           break;
         case 'line':
-          if (this.lineSeries) {
+          if (this.lineSeries && cachedData.line.length > 0) {
             this.lineSeries.setData(cachedData.line);
           }
           break;
         case 'area':
-          if (this.areaSeries) {
+          if (this.areaSeries && cachedData.line.length > 0) {
             this.areaSeries.setData(cachedData.line);
           }
           break;
       }
 
       // Update volume series
-      if (this.volumeSeries) {
+      if (this.volumeSeries && cachedData.volume.length > 0) {
         this.volumeSeries.setData(cachedData.volume);
       }
     } catch (error) {
@@ -396,7 +510,10 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
   public setTimeframe(timeframe: string): void {
     this.selectedTimeframe = timeframe;
     this.resetCandleAggregation();
-    this.updateChart();
+
+    if (this.selectedPair) {
+      this.loadCompleteDataForPair(this.selectedPair);
+    }
   }
 
   public setChartType(type: string): void {
@@ -408,50 +525,10 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
     this.currentCandle = null;
     this.candleStartTime = 0;
 
-    // Clear cached candles for current pair to regenerate with new timeframe
+    // Clear cached data for current pair to regenerate with new timeframe
     if (this.selectedPair) {
-      const cachedData = this.chartDataCache.get(this.selectedPair.symbol);
-      if (cachedData) {
-        cachedData.candles = [];
-        // Regenerate candles from line data if available
-        this.regenerateCandlesFromLineData(cachedData);
-      }
+      this.chartDataCache.delete(this.selectedPair.symbol);
     }
-  }
-
-  private regenerateCandlesFromLineData(cachedData: ChartData): void {
-    if (cachedData.line.length === 0) return;
-
-    const timeframeMinutes = this.getTimeframeMinutes();
-    const candleMap = new Map<number, CandlestickData>();
-
-    // Group line data into candles
-    cachedData.line.forEach((point) => {
-      const candleTime =
-        Math.floor((point.time as number) / (timeframeMinutes * 60)) *
-        (timeframeMinutes * 60);
-
-      let candle = candleMap.get(candleTime);
-      if (!candle) {
-        candle = {
-          time: candleTime as UTCTimestamp,
-          open: point.value,
-          high: point.value,
-          low: point.value,
-          close: point.value,
-        };
-        candleMap.set(candleTime, candle);
-      } else {
-        candle.high = Math.max(candle.high, point.value);
-        candle.low = Math.min(candle.low, point.value);
-        candle.close = point.value;
-      }
-    });
-
-    // Convert map to sorted array
-    cachedData.candles = Array.from(candleMap.values()).sort(
-      (a, b) => (a.time as number) - (b.time as number)
-    );
   }
 
   public refreshCharts(): void {
@@ -608,45 +685,58 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
 
     const data = this.getCurrentChartData();
 
+    if (data.candles.length === 0 && data.line.length === 0) {
+      console.log('No data available for chart');
+      return;
+    }
+
     // Create appropriate series based on chart type
     switch (this.selectedChartType) {
       case 'candlestick':
-        this.candlestickSeries = this.mainChart.addSeries(CandlestickSeries, {
-          upColor: '#10B981',
-          downColor: '#EF4444',
-          borderVisible: false,
-          wickUpColor: '#10B981',
-          wickDownColor: '#EF4444',
-        });
-        this.candlestickSeries.setData(data.candles);
+        if (data.candles.length > 0) {
+          this.candlestickSeries = this.mainChart.addSeries(CandlestickSeries, {
+            upColor: '#10B981',
+            downColor: '#EF4444',
+            borderVisible: false,
+            wickUpColor: '#10B981',
+            wickDownColor: '#EF4444',
+          });
+          this.candlestickSeries.setData(data.candles);
+        }
         break;
 
       case 'line':
-        this.lineSeries = this.mainChart.addSeries(LineSeries, {
-          color: '#3B82F6',
-          lineWidth: 2,
-        });
-        this.lineSeries.setData(data.line);
+        if (data.line.length > 0) {
+          this.lineSeries = this.mainChart.addSeries(LineSeries, {
+            color: '#3B82F6',
+            lineWidth: 2,
+          });
+          this.lineSeries.setData(data.line);
+        }
         break;
 
       case 'area':
-        this.areaSeries = this.mainChart.addSeries(AreaSeries, {
-          topColor: 'rgba(59, 130, 246, 0.56)',
-          bottomColor: 'rgba(59, 130, 246, 0.04)',
-          lineColor: '#3B82F6',
-          lineWidth: 2,
-        });
-        this.areaSeries.setData(data.line);
+        if (data.line.length > 0) {
+          this.areaSeries = this.mainChart.addSeries(AreaSeries, {
+            topColor: 'rgba(59, 130, 246, 0.56)',
+            bottomColor: 'rgba(59, 130, 246, 0.04)',
+            lineColor: '#3B82F6',
+            lineWidth: 2,
+          });
+          this.areaSeries.setData(data.line);
+        }
         break;
     }
 
-    this.volumeSeries = this.volumeChart.addSeries(HistogramSeries, {
-      color: '#6B7280',
-      priceFormat: {
-        type: 'volume',
-      },
-    });
-    this.volumeSeries.setData(data.volume);
+    if (data.volume.length > 0) {
+      this.volumeSeries = this.volumeChart.addSeries(HistogramSeries, {
+        color: '#6B7280',
+        priceFormat: {
+          type: 'volume',
+        },
+      });
+      this.volumeSeries.setData(data.volume);
+    }
 
     this.mainChart.timeScale().fitContent();
     this.volumeChart.timeScale().fitContent();
@@ -656,21 +746,14 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
     if (this.selectedPair) {
       const cachedData = this.chartDataCache.get(this.selectedPair.symbol);
       if (cachedData) {
-        // Include current candle in candlestick data
-        const candlesToDisplay = [...cachedData.candles];
-        if (this.currentCandle && this.selectedChartType === 'candlestick') {
-          candlesToDisplay.push(this.currentCandle);
-        }
-
         return {
-          candles: candlesToDisplay,
+          candles: cachedData.candles,
           line: cachedData.line,
           volume: cachedData.volume,
         };
       }
     }
 
-    // Return empty data if no cached data available
     return { candles: [], line: [], volume: [] };
   }
 
@@ -705,5 +788,19 @@ export class ChartComponent implements AfterViewInit, OnDestroy {
       '1w': 10080,
     };
     return timeframeMap[this.selectedTimeframe] || 60;
+  }
+
+  private getIntervalString(): string {
+    const intervalMap: { [key: string]: string } = {
+      '1m': '1m',
+      '5m': '5m',
+      '15m': '15m',
+      '30m': '30m',
+      '1h': '1h',
+      '4h': '4h',
+      '1d': '1d',
+      '1w': '1w',
+    };
+    return intervalMap[this.selectedTimeframe] || '1h';
   }
 }
