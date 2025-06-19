@@ -7,7 +7,7 @@ export const routes: Routes = [
     path: '',
     loadChildren: () =>
       import('./dashboard/dashboard.routes').then((m) => m.dashboardRoutes),
-    //canActivate: [authGuard],
+    canActivate: [authGuard],
   },
   {
     path: '404',
