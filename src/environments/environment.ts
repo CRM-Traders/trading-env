@@ -1,5 +1,5 @@
 export const environment = {
-  gatewayDomain: 'http://localhost:5000',
-  socketDomain: 'http://localhost:5268',
+  gatewayDomain: 'https://api.salesvault.vc',
+  socketDomain: 'https://b-api.salesvault.vc',
   redirectUrl: 'https://salesvault.vc',
 };
