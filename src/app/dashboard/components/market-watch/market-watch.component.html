@@ -1,18 +1,57 @@
+<!-- src/app/dashboard/components/market-watch/market-watch.component.html -->
 <div class="bg-gray-800 rounded-lg p-2 sm:p-4 mb-3">
+  <!-- Error Display -->
+  <div
+    *ngIf="error"
+    class="mb-3 p-3 bg-red-900/20 border border-red-500/30 rounded-lg"
+  >
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <svg
+          class="w-4 h-4 text-red-400"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <span class="text-red-400 text-sm">{{ error }}</span>
+      </div>
+      <button
+        (click)="refreshData()"
+        class="text-red-400 hover:text-red-300 text-sm underline"
+      >
+        Retry
+      </button>
+    </div>
+  </div>
+
   <div class="flex justify-between items-start gap-2 lg:gap-4">
     <!-- Left Section - Price Info -->
     <div class="flex-1">
       <!-- Symbol with Dropdown -->
       <div class="flex items-center mb-1 pair-selector-container relative">
         <h1 class="text-base sm:text-lg font-bold text-white mr-2">
-          {{ selectedPair?.symbol || "BTC/USDT" }}
+          {{ selectedPair?.displayName || "BTC/USDT" }}
         </h1>
+
+        <!-- Loading indicator for pair selection -->
+        <div
+          *ngIf="isLoading"
+          class="animate-spin w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full mr-2"
+        ></div>
+
         <button
           (click)="togglePairSelector()"
-          class="text-gray-400 hover:text-white"
+          class="text-gray-400 hover:text-white transition-colors"
+          [disabled]="isLoading"
         >
           <svg
-            class="w-3 h-3 sm:w-4 sm:h-4"
+            class="w-3 h-3 sm:w-4 sm:h-4 transition-transform"
+            [class.rotate-180]="showPairSelector"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -25,45 +64,97 @@
             ></path>
           </svg>
         </button>
-        <span class="text-orange-400 text-xs ml-2">{{
-          selectedPair?.name || "Bitcoin Price"
-        }}</span>
+
+        <span class="text-orange-400 text-xs ml-2">
+          {{ selectedPair?.baseAsset || "Bitcoin" }} Price
+        </span>
+
+        <!-- Real-time connection status -->
+        <div class="ml-2 flex items-center space-x-1">
+          <div
+            class="w-2 h-2 rounded-full transition-colors"
+            [class]="
+              signalRService.isConnected()
+                ? 'bg-green-400 animate-pulse'
+                : 'bg-red-400'
+            "
+          ></div>
+          <span class="text-xs text-gray-500">
+            {{ signalRService.isConnected() ? "Live" : "Offline" }}
+          </span>
+        </div>
 
         <!-- Dropdown for Pair Selection -->
         <div
           *ngIf="showPairSelector"
-          class="absolute top-6 left-0 bg-gray-700 rounded-lg shadow-lg border border-gray-600 z-20 w-full sm:w-72 max-w-sm"
+          class="absolute top-6 left-0 bg-gray-700 rounded-lg shadow-lg border border-gray-600 z-20 w-full sm:w-72 max-w-sm max-h-96 overflow-hidden"
         >
+          <!-- Search Input -->
           <div class="p-2 border-b border-gray-600">
             <input
               type="text"
               placeholder="Search pairs..."
-              class="w-full bg-gray-800 text-white px-2 py-1 rounded border border-gray-600 text-xs"
-              [(ngModel)]="searchTerm"
+              class="w-full bg-gray-800 text-white px-2 py-1 rounded border border-gray-600 text-xs focus:border-cyan-400 focus:outline-none"
+              [ngModel]="searchTerm"
+              (ngModelChange)="onSearchChange($event)"
+              #searchInput
             />
           </div>
-          <div class="max-h-40 overflow-y-auto">
+
+          <!-- Loading state -->
+          <div *ngIf="isLoading" class="p-4 text-center">
             <div
-              *ngFor="let pair of filteredPairs"
+              class="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto"
+            ></div>
+            <p class="text-gray-400 text-xs mt-2">Loading pairs...</p>
+          </div>
+
+          <!-- Pairs List -->
+          <div *ngIf="!isLoading" class="max-h-80 overflow-y-auto">
+            <div
+              *ngIf="filteredPairs.length === 0"
+              class="p-4 text-center text-gray-400 text-sm"
+            >
+              No pairs found
+            </div>
+
+            <div
+              *ngFor="let pair of filteredPairs; trackBy: trackBySymbol"
               (click)="selectTradingPair(pair)"
-              class="flex justify-between items-center p-2 hover:bg-gray-600 cursor-pointer border-b border-gray-700 last:border-b-0"
+              class="flex justify-between items-center p-2 hover:bg-gray-600 cursor-pointer border-b border-gray-700 last:border-b-0 transition-colors"
+              [ngClass]="{
+                'bg-gray-600 bg-opacity-50':
+                  selectedPair?.symbol === pair.symbol
+              }"
             >
               <div>
-                <div class="font-semibold text-white text-xs">
-                  {{ pair.symbol }}
+                <div
+                  class="font-semibold text-white text-xs flex items-center space-x-2"
+                >
+                  <span>{{ pair.displayName }}</span>
+                  <div
+                    *ngIf="pair.isLoading"
+                    class="animate-spin w-3 h-3 border border-cyan-400 border-t-transparent rounded-full"
+                  ></div>
                 </div>
-                <div class="text-xs text-gray-400">{{ pair.name }}</div>
+                <div class="text-xs text-gray-400">{{ pair.baseAsset }}</div>
               </div>
               <div class="text-right">
                 <div class="font-mono text-white text-xs">
-                  ${{ pair.price | number : "1.2-5" }}
+                  <span *ngIf="!pair.isLoading; else loadingPrice">
+                    ${{ formatPrice(pair.currentPrice) }}
+                  </span>
+                  <ng-template #loadingPrice>
+                    <span class="text-gray-500">Loading...</span>
+                  </ng-template>
                 </div>
                 <div
-                  [class]="pair.change >= 0 ? 'text-green-400' : 'text-red-400'"
+                  *ngIf="!pair.isLoading && pair.priceChangePercent !== 0"
+                  [class]="getPriceChangeClass(pair.priceChangePercent)"
                   class="text-xs"
                 >
-                  {{ pair.change >= 0 ? "+" : ""
-                  }}{{ pair.changePercent | number : "1.2-2" }}%
+                  {{ pair.priceChangePercent >= 0 ? "+" : ""
+                  }}{{ pair.priceChangePercent | number : "1.2-2" }}%
                 </div>
               </div>
             </div>
@@ -74,56 +165,107 @@
       <!-- Large Price Display -->
       <div class="mb-1">
         <span
-          class="text-xl sm:text-2xl lg:text-3xl font-bold"
-          [class]="
-            (selectedPair?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-          "
+          class="text-xl sm:text-2xl lg:text-3xl font-bold transition-colors"
+          [class]="getPriceChangeClass(selectedPair?.priceChangePercent || 0)"
         >
-          {{ selectedPair?.price || 107244.73 | number : "1.2-2" }}
+          <span
+            *ngIf="
+              selectedPair && !selectedPair.isLoading;
+              else loadingMainPrice
+            "
+          >
+            {{ formatPrice(selectedPair.currentPrice) }}
+          </span>
+          <ng-template #loadingMainPrice>
+            <span class="text-gray-400">Loading...</span>
+          </ng-template>
         </span>
       </div>
 
       <!-- Price with Change -->
       <div class="flex items-center gap-2 mb-2">
         <span class="text-gray-300 text-sm">
-          ${{ selectedPair?.price || 107244.73 | number : "1.2-2" }}
+          <span *ngIf="selectedPair && !selectedPair.isLoading">
+            ${{ formatPrice(selectedPair.currentPrice) }}
+          </span>
         </span>
         <span
-          class="text-sm font-medium"
-          [class]="
-            (selectedPair?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+          *ngIf="
+            selectedPair &&
+            !selectedPair.isLoading &&
+            selectedPair.priceChangePercent !== 0
           "
+          class="text-sm font-medium transition-colors"
+          [class]="getPriceChangeClass(selectedPair.priceChangePercent)"
         >
-          {{ (selectedPair?.change || 0) >= 0 ? "+" : ""
-          }}{{ selectedPair?.changePercent || -2.8 | number : "1.2-2" }}%
+          {{ selectedPair.priceChangePercent >= 0 ? "+" : ""
+          }}{{ selectedPair.priceChangePercent | number : "1.2-2" }}%
+        </span>
+        <span
+          *ngIf="
+            selectedPair &&
+            !selectedPair.isLoading &&
+            selectedPair.priceChange !== 0
+          "
+          class="text-xs text-gray-500"
+        >
+          ({{ selectedPair.priceChange >= 0 ? "+" : "" }}${{
+            selectedPair.priceChange | number : "1.2-4"
+          }})
         </span>
       </div>
     </div>
 
     <!-- Right Section - Stats Grid -->
-    <div class="grid grid-cols-2 gap-2 text-left text-right w-auto">
+    <div class="grid grid-cols-2 gap-2 text-right w-auto">
       <div>
         <div class="text-gray-400 text-xs mb-1">24h High</div>
         <div class="text-white font-mono text-sm">
-          {{ dailyHigh | number : "1.2-2" }}
+          <span *ngIf="dailyHigh > 0; else loadingStat">
+            {{ formatPrice(dailyHigh) }}
+          </span>
+          <ng-template #loadingStat>
+            <span class="text-gray-500">--</span>
+          </ng-template>
         </div>
       </div>
       <div>
-        <div class="text-gray-400 text-xs mb-1">24h Vol(BTC)</div>
+        <div class="text-gray-400 text-xs mb-1">24h Vol</div>
         <div class="text-white font-mono text-sm">
-          {{ dailyVolume / 1000000 | number : "1.2-2" }}
+          <span *ngIf="dailyVolume > 0; else loadingStat">
+            {{ formatVolume(dailyVolume) }}
+          </span>
         </div>
       </div>
       <div>
         <div class="text-gray-400 text-xs mb-1">24h Low</div>
         <div class="text-white font-mono text-sm">
-          {{ dailyLow | number : "1.2-2" }}
+          <span *ngIf="dailyLow > 0; else loadingStat">
+            {{ formatPrice(dailyLow) }}
+          </span>
         </div>
       </div>
       <div>
-        <div class="text-gray-400 text-xs mb-1">24h Vol(USDT)</div>
-        <div class="text-white font-mono text-sm">
-          {{ dailyVolume / 1000000000 | number : "1.2-2" }}M
+        <div class="text-gray-400 text-xs mb-1">Change</div>
+        <div
+          class="font-mono text-sm transition-colors"
+          [class]="getPriceChangeClass(selectedPair?.priceChangePercent || 0)"
+        >
+          <span
+            *ngIf="
+              selectedPair &&
+              !selectedPair.isLoading &&
+              selectedPair.priceChangePercent !== 0
+            "
+          >
+            {{ selectedPair.priceChangePercent >= 0 ? "+" : ""
+            }}{{ selectedPair.priceChangePercent | number : "1.1-1" }}%
+          </span>
+          <span
+            *ngIf="!selectedPair || selectedPair.isLoading"
+            class="text-gray-500"
+            >--</span
+          >
         </div>
       </div>
     </div>

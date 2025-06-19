@@ -13,22 +13,22 @@ export const dashboardRoutes: Routes = [
       {
         path: '',
         component: TradingChartComponent,
-        canActivate: [authGuard],
+        //canActivate: [authGuard],
       },
       {
         path: 'trading',
         component: TradingChartComponent,
-        canActivate: [authGuard],
+        //canActivate: [authGuard],
       },
       {
         path: 'portfolio',
         component: PortfolioComponent,
-        canActivate: [authGuard],
+        //canActivate: [authGuard],
       },
       {
         path: 'history',
         component: HistoryComponent,
-        canActivate: [authGuard],
+        //canActivate: [authGuard],
       },
     ],
   },
