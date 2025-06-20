@@ -198,7 +198,7 @@ export class TradingPairsService {
     }
 
     // Ensure response.items is an array
-    const items = Array.isArray(response.items) ? response.items : [];
+    const items = Array.isArray(response) ? response : [];
 
     const filteredPairs = this.filterAndSortPairs(items);
 
