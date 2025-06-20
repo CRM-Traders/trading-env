@@ -90,9 +90,6 @@ export class TradingValidationService {
     return rules;
   }
 
-  /**
-   * Validate an order against the rules
-   */
   validateOrder(
     orderType: 'Market' | 'Limit',
     side: 'Buy' | 'Sell',

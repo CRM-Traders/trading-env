@@ -57,7 +57,7 @@ export interface OpenOrder {
 })
 export class TradingService {
   private readonly http = inject(HttpService);
-  private readonly baseUrl = `${environment.gatewayDomain}/api/trading`;
+  private readonly baseUrl = `traiding/api/trading`;
 
   private readonly ordersSubject = new BehaviorSubject<OrderResponse[]>([]);
   private readonly openOrdersSubject = new BehaviorSubject<OpenOrder[]>([]);
