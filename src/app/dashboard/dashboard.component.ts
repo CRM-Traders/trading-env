@@ -30,8 +30,8 @@ export class DashboardComponent {
 
   navItems: NavItem[] = [
     { icon: 'trending_up', label: 'Trading', route: '/trading' },
-    { icon: 'pie_chart', label: 'Portfolio', route: '/portfolio' },
-    { icon: 'history', label: 'History', route: '/history' },
+    // { icon: 'pie_chart', label: 'Portfolio', route: '/portfolio' },
+    // { icon: 'history', label: 'History', route: '/history' },
   ];
 
   constructor(private router: Router) {
