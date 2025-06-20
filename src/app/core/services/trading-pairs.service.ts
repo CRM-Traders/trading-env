@@ -166,6 +166,7 @@ export class TradingPairsService {
    */
   public searchTradingPairs(searchTerm: string): Observable<TradingPair[]> {
     this.currentSearchTerm = searchTerm.toLowerCase().trim();
+    this.paginationState.currentPage = 0;
 
     if (!this.currentSearchTerm) {
       this.tradingPairsSubject.next([...this.allTradingPairs]);
@@ -358,7 +359,9 @@ export class TradingPairsService {
 
     return this.httpService
       .get<any>(
-        `binance/api/binance/trading-pairs?pageIndex=${page}&pageSize=${this.paginationState.pageSize}`
+        `binance/api/binance/trading-pairs?pageIndex=${page - 1}&pageSize=${
+          this.paginationState.pageSize
+        }`
       )
       .pipe(
         tap(() =>
