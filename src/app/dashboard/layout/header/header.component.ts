@@ -8,6 +8,7 @@ import {
   Output,
 } from '@angular/core';
 import { AuthService } from '../../../core/services/auth.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-header',
@@ -45,5 +46,9 @@ export class HeaderComponent {
     if (dropdown && !dropdown.contains(target) && this.isUserDropdownOpen) {
       this.toggleUserDropdown.emit();
     }
+  }
+
+  logout() {
+    window.location.href = environment.redirectUrl;
   }
 }
