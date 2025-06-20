@@ -466,23 +466,29 @@ export class TradingPairsService {
     isSearch: boolean
   ): TradingPair[] {
     let pairs: TradingPair[] = [];
+    let unfilteredCount = 0;
     let hasMoreData = true; // DEFAULT TO TRUE
 
     // Handle different response formats
     if (Array.isArray(response)) {
       // Direct array response
+      unfilteredCount = response.length;
       pairs = this.filterAndSortPairs(response);
-      // Only set hasMore to false if we get less than a full page
-      hasMoreData = pairs.length >= this.DEFAULT_PAGE_SIZE;
+      // CRITICAL FIX: Always assume more data until we've tried at least 3 pages
+      // OR if we get less than half the page size in unfiltered results
+      hasMoreData = page < 3 || unfilteredCount >= this.DEFAULT_PAGE_SIZE / 2;
     } else if (response && response.items && Array.isArray(response.items)) {
       // Paginated response
+      unfilteredCount = response.items.length;
       pairs = this.filterAndSortPairs(response.items);
       // If the API explicitly tells us there's no more, respect that
-      // Otherwise, check if we got a full page
+      // Otherwise, always try at least 3 pages
       if (response.hasNextPage !== undefined) {
         hasMoreData = response.hasNextPage;
       } else {
-        hasMoreData = pairs.length >= this.DEFAULT_PAGE_SIZE;
+        // CRITICAL FIX: Always assume more data until we've tried at least 3 pages
+        // OR if we get less than half the page size in unfiltered results
+        hasMoreData = page < 3 || unfilteredCount >= this.DEFAULT_PAGE_SIZE / 2;
       }
     } else {
       // Fallback to default pairs
@@ -492,7 +498,7 @@ export class TradingPairsService {
     }
 
     console.log(
-      `ProcessApiResponse - Page: ${page}, Pairs received: ${pairs.length}, Has more: ${hasMoreData}`
+      `ProcessApiResponse - Page: ${page}, Unfiltered count: ${unfilteredCount}, Filtered pairs: ${pairs.length}, Has more: ${hasMoreData}`
     );
 
     // Update internal state based on mode
@@ -505,11 +511,8 @@ export class TradingPairsService {
         this.searchResults.push(...pairs);
       }
 
-      // CRITICAL: Update the current page ONLY after successful load
-      if (pairs.length > 0) {
-        state.currentPage = page;
-      }
-
+      // Update the current page regardless of filtered count
+      state.currentPage = page;
       state.totalLoaded = this.searchResults.length;
       state.hasMore = hasMoreData;
 
@@ -526,11 +529,8 @@ export class TradingPairsService {
         this.allTradingPairs.push(...pairs);
       }
 
-      // CRITICAL: Update the current page ONLY after successful load
-      if (pairs.length > 0) {
-        state.currentPage = page;
-      }
-
+      // Update the current page regardless of filtered count
+      state.currentPage = page;
       state.totalLoaded = this.allTradingPairs.length;
       state.hasMore = hasMoreData;
 
