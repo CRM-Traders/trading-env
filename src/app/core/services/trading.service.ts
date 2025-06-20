@@ -184,7 +184,7 @@ export class TradingService {
 
     return this.http
       .get<PagedResult<OrderResponse>>(
-        `${this.baseUrl}/orders/${tradingAccountId}?pageSize=${pageSize}&pageIndex=${pageIndex}`
+        `traiding/api/orders/${tradingAccountId}?pageSize=${pageSize}&pageIndex=${pageIndex}`
       )
       .pipe(
         map((result) => {
