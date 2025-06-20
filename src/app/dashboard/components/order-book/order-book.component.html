@@ -1,5 +1,34 @@
 <!-- Enhanced Order Book Header with Toggle -->
 <div class="shadow-2xl overflow-x-hidden">
+  <!-- Error Display -->
+  <div
+    *ngIf="hasError"
+    class="mb-3 p-3 bg-red-900/20 border border-red-500/30 rounded-lg"
+  >
+    <div class="flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <svg
+          class="w-4 h-4 text-red-400"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <span class="text-red-400 text-sm">{{ errorMessage }}</span>
+      </div>
+      <button
+        (click)="refreshOrderBook()"
+        class="text-red-400 hover:text-red-300 text-sm underline"
+      >
+        Retry
+      </button>
+    </div>
+  </div>
+
   <!-- Toggle Buttons -->
   <div class="flex rounded-lg p-1 mb-4 gap-1">
     <button
@@ -21,6 +50,7 @@
         />
       </svg>
       Order Book
+      <span *ngIf="isLoading" class="ml-2 text-xs">(Loading...)</span>
     </button>
     <button
       (click)="toggleOrderView('trades')"
@@ -51,116 +81,133 @@
     *ngIf="currentOrderView === 'book'"
     class="space-y-4 max-h-[535px] overflow-y-auto"
   >
-    <!-- Market Depth Header -->
-    <div class="flex justify-between items-center text-xs font-medium">
-      <span class="text-gray-400 uppercase tracking-wider">Price (USD)</span>
-      <span class="text-gray-400 uppercase tracking-wider">Amount</span>
-      <span class="text-gray-400 uppercase tracking-wider">Total</span>
+    <!-- Loading State -->
+    <div *ngIf="isLoading && isOrderBookEmpty" class="text-center py-8">
+      <div
+        class="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full mx-auto mb-2"
+      ></div>
+      <p class="text-gray-400 text-sm">
+        Loading order book for {{ currentSymbol }}...
+      </p>
     </div>
 
-    <!-- Asks Section -->
-    <div class="space-y-1">
-      <div class="flex items-center text-xs font-semibold text-red-400 mb-2">
-        <div class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
-        ASKS
-      </div>
-
-      <div
-        *ngFor="let ask of orderBook.asks.slice(0, 4); let i = index"
-        class="group relative flex justify-between items-center p-2.5 rounded-lg border border-red-900/20 bg-gradient-to-r from-red-950/30 to-red-900/10 hover:from-red-950/50 hover:to-red-900/20 transition-all duration-200"
-        [class.hidden]="i >= 4 && !isDesktop"
+    <!-- Empty State -->
+    <div
+      *ngIf="!isLoading && isOrderBookEmpty && !hasError"
+      class="text-center py-8"
+    >
+      <svg
+        class="w-12 h-12 mx-auto mb-2 text-gray-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
       >
-        <!-- Volume Bar Background -->
-        <div class="absolute inset-0 bg-red-500/5 rounded-lg"></div>
-        <div
-          class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-500/10 to-transparent rounded-lg transition-all duration-300"
-          [style.width.%]="(ask.size / maxSize) * 100"
-        ></div>
-
-        <span class="relative text-red-400 font-mono text-sm font-semibold">
-          ${{ ask.price | number : "1.2-5" }}
-        </span>
-        <span class="relative text-gray-200 font-medium text-sm">
-          {{ ask.size | number : "1.0-3" }}
-        </span>
-        <span class="relative text-gray-400 text-xs">
-          ${{ ask.price * ask.size | number : "1.0-2" }}
-        </span>
-      </div>
-
-      <!-- Desktop Additional Asks -->
-      <div
-        *ngFor="let ask of orderBook.asks.slice(4, 8)"
-        class="hidden lg:group lg:relative lg:flex justify-between items-center p-2.5 rounded-lg border border-red-900/20 bg-gradient-to-r from-red-950/30 to-red-900/10 hover:from-red-950/50 hover:to-red-900/20 transition-all duration-200"
-      >
-        <div class="absolute inset-0 bg-red-500/5 rounded-lg"></div>
-        <div
-          class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-500/10 to-transparent rounded-lg"
-          [style.width.%]="(ask.size / maxSize) * 100"
-        ></div>
-
-        <span class="relative text-red-400 font-mono text-sm font-semibold">
-          ${{ ask.price | number : "1.2-5" }}
-        </span>
-        <span class="relative text-gray-200 font-medium text-sm">
-          {{ ask.size | number : "1.0-3" }}
-        </span>
-        <span class="relative text-gray-400 text-xs">
-          ${{ ask.price * ask.size | number : "1.0-2" }}
-        </span>
-      </div>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        ></path>
+      </svg>
+      <p class="text-gray-400 text-sm">No order book data available</p>
     </div>
 
-    <!-- Bids Section -->
-    <div class="space-y-1">
-      <div class="flex items-center text-xs font-semibold text-green-400 mb-2">
-        <div class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-        BIDS
+    <!-- Order Book Content -->
+    <div *ngIf="!isOrderBookEmpty">
+      <!-- Market Depth Header -->
+      <div class="flex justify-between items-center text-xs font-medium">
+        <span class="text-gray-400 uppercase tracking-wider">Price (USD)</span>
+        <span class="text-gray-400 uppercase tracking-wider">Amount</span>
+        <span class="text-gray-400 uppercase tracking-wider">Total</span>
       </div>
 
-      <div
-        *ngFor="let bid of orderBook.bids.slice(0, 4); let i = index"
-        class="group relative flex justify-between items-center p-2.5 rounded-lg border border-green-900/20 bg-gradient-to-r from-green-950/30 to-green-900/10 hover:from-green-950/50 hover:to-green-900/20 transition-all duration-200"
-        [class.hidden]="i >= 4 && !isDesktop"
-      >
-        <!-- Volume Bar Background -->
-        <div class="absolute inset-0 bg-green-500/5 rounded-lg"></div>
-        <div
-          class="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500/10 to-transparent rounded-lg"
-          [style.width.%]="(bid.size / maxSize) * 100"
-        ></div>
+      <!-- Asks Section -->
+      <div class="space-y-1">
+        <div class="flex items-center text-xs font-semibold text-red-400 mb-2">
+          <div
+            class="w-2 h-2 bg-red-500 rounded-full mr-2"
+            [class.animate-pulse]="isLoading"
+          ></div>
+          ASKS
+        </div>
 
-        <span class="relative text-green-400 font-mono text-sm font-semibold">
-          ${{ bid.price | number : "1.2-5" }}
-        </span>
-        <span class="relative text-gray-200 font-medium text-sm">
-          {{ bid.size | number : "1.0-3" }}
-        </span>
-        <span class="relative text-gray-400 text-xs">
-          ${{ bid.price * bid.size | number : "1.0-2" }}
-        </span>
+        <div
+          *ngFor="let ask of getDisplayedAsks(); let i = index"
+          class="group relative flex justify-between items-center p-2.5 rounded-lg border border-red-900/20 bg-gradient-to-r from-red-950/30 to-red-900/10 hover:from-red-950/50 hover:to-red-900/20 transition-all duration-200"
+        >
+          <!-- Volume Bar Background -->
+          <div class="absolute inset-0 bg-red-500/5 rounded-lg"></div>
+          <div
+            class="absolute left-0 top-0 h-full bg-gradient-to-r from-red-500/10 to-transparent rounded-lg transition-all duration-300"
+            [style.width.%]="getVolumeBarWidth(ask.size)"
+          ></div>
+
+          <span class="relative text-red-400 font-mono text-sm font-semibold">
+            ${{ formatPrice(ask.price) }}
+          </span>
+          <span class="relative text-gray-200 font-medium text-sm">
+            {{ formatSize(ask.size) }}
+          </span>
+          <span class="relative text-gray-400 text-xs">
+            ${{ formatTotal(ask.price, ask.size) }}
+          </span>
+        </div>
       </div>
 
-      <!-- Desktop Additional Bids -->
+      <!-- Spread Information -->
       <div
-        *ngFor="let bid of orderBook.bids.slice(4, 8)"
-        class="hidden lg:group lg:relative lg:flex justify-between items-center p-2.5 rounded-lg border border-green-900/20 bg-gradient-to-r from-green-950/30 to-green-900/10 hover:from-green-950/50 hover:to-green-900/20 transition-all duration-200"
+        *ngIf="orderBook.spread > 0"
+        class="text-center py-2 border-y border-gray-700/30"
       >
-        <div class="absolute inset-0 bg-green-500/5 rounded-lg"></div>
-        <div
-          class="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500/10 to-transparent rounded-lg"
-          [style.width.%]="(bid.size / maxSize) * 100"
-        ></div>
+        <div class="text-xs text-gray-500">
+          Spread:
+          <span class="text-orange-400 font-mono"
+            >${{ formatPrice(orderBook.spread) }}</span
+          >
+        </div>
+      </div>
 
-        <span class="relative text-green-400 font-mono text-sm font-semibold">
-          ${{ bid.price | number : "1.2-5" }}
-        </span>
-        <span class="relative text-gray-200 font-medium text-sm">
-          {{ bid.size | number : "1.0-3" }}
-        </span>
-        <span class="relative text-gray-400 text-xs">
-          ${{ bid.price * bid.size | number : "1.0-2" }}
-        </span>
+      <!-- Bids Section -->
+      <div class="space-y-1">
+        <div
+          class="flex items-center text-xs font-semibold text-green-400 mb-2"
+        >
+          <div
+            class="w-2 h-2 bg-green-500 rounded-full mr-2"
+            [class.animate-pulse]="isLoading"
+          ></div>
+          BIDS
+        </div>
+
+        <div
+          *ngFor="let bid of getDisplayedBids(); let i = index"
+          class="group relative flex justify-between items-center p-2.5 rounded-lg border border-green-900/20 bg-gradient-to-r from-green-950/30 to-green-900/10 hover:from-green-950/50 hover:to-green-900/20 transition-all duration-200"
+        >
+          <!-- Volume Bar Background -->
+          <div class="absolute inset-0 bg-green-500/5 rounded-lg"></div>
+          <div
+            class="absolute left-0 top-0 h-full bg-gradient-to-r from-green-500/10 to-transparent rounded-lg"
+            [style.width.%]="getVolumeBarWidth(bid.size)"
+          ></div>
+
+          <span class="relative text-green-400 font-mono text-sm font-semibold">
+            ${{ formatPrice(bid.price) }}
+          </span>
+          <span class="relative text-gray-200 font-medium text-sm">
+            {{ formatSize(bid.size) }}
+          </span>
+          <span class="relative text-gray-400 text-xs">
+            ${{ formatTotal(bid.price, bid.size) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Update Information -->
+      <div *ngIf="orderBook.lastUpdateId > 0" class="text-center pt-2">
+        <div class="text-xs text-gray-500">
+          Last Update: {{ orderBook.lastUpdateId }}
+          <span *ngIf="isLoading" class="ml-2 text-blue-400">Updating...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -173,6 +220,7 @@
     <div class="flex items-center text-sm font-semibold text-gray-300 mb-3">
       <div class="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
       RECENT TRADES
+      <span class="ml-2 text-xs text-gray-500">(Mock Data)</span>
     </div>
 
     <div
@@ -239,7 +287,7 @@
               >Amount</span
             >
             <span class="text-gray-200 font-medium text-sm">
-              {{ trade.size | number : "1.0-3" }}
+              {{ formatSize(trade.size) }}
             </span>
           </div>
           <div class="flex flex-col text-right">
@@ -250,7 +298,7 @@
               class="font-mono font-semibold text-lg"
               [class]="trade.side === 'buy' ? 'text-green-400' : 'text-red-400'"
             >
-              ${{ trade.price | number : "1.2-5" }}
+              ${{ formatPrice(trade.price) }}
             </span>
           </div>
           <div class="flex flex-col text-right">
@@ -258,11 +306,36 @@
               >Total</span
             >
             <span class="text-gray-300 font-medium text-sm">
-              ${{ trade.price * trade.size | number : "1.0-2" }}
+              ${{ formatTotal(trade.price, trade.size) }}
             </span>
           </div>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Refresh Button -->
+  <div *ngIf="currentOrderView === 'book'" class="mt-4 text-center">
+    <button
+      (click)="refreshOrderBook()"
+      [disabled]="isLoading"
+      class="text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+    >
+      <svg
+        class="w-4 h-4 inline mr-1"
+        [class.animate-spin]="isLoading"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        ></path>
+      </svg>
+      {{ isLoading ? "Refreshing..." : "Refresh" }}
+    </button>
   </div>
 </div>
