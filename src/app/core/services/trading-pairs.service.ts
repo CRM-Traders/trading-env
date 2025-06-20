@@ -141,7 +141,6 @@ export class TradingPairsService {
     this.loadingSubject.next(true);
     this.errorSubject.next(null);
 
-    // Update search term
     if (search !== undefined) {
       this.currentSearchTerm = search;
     }
@@ -153,13 +152,10 @@ export class TradingPairsService {
     }
 
     const params: TradingPairsRequest = {
-      pageIndex,
-      pageSize,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+      search: this.currentSearchTerm,
     };
-
-    if (this.currentSearchTerm) {
-      params.search = this.currentSearchTerm;
-    }
 
     return this.httpService
       .get<TradingPairsPaginatedResponse>(
