@@ -6,45 +6,94 @@ import {
   OnDestroy,
   inject,
   HostListener,
+  ChangeDetectorRef,
 } from '@angular/core';
 import {
   ReactiveFormsModule,
   FormBuilder,
   FormGroup,
   Validators,
-  FormsModule,
+  AbstractControl,
+  ValidationErrors,
 } from '@angular/forms';
-import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 import {
-  PositionService,
-  TradingMode,
-  OrderSide,
-  Position,
-  CreatePositionRequest,
-} from '../../../core/services/position.service';
-import { SignalRService } from '../../../core/services/signalr.service';
-import { TradingPairsService } from '../../../core/services/trading-pairs.service';
+  Subject,
+  takeUntil,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  combineLatest,
+  BehaviorSubject,
+} from 'rxjs';
 import {
   TradingService,
   CreateOrderRequest,
   OpenOrder,
 } from '../../../core/services/trading.service';
-import { WalletService } from '../../../core/services/wallet.service';
+import {
+  PositionService,
+  Position,
+  CreatePositionRequest,
+} from '../../../core/services/position.service';
+import {
+  WalletService,
+  WalletBalance,
+} from '../../../core/services/wallet.service';
 import { TradingAccountService } from '../../../core/services/trading-account.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { SignalRService } from '../../../core/services/signalr.service';
+import {
+  TradingPairsService,
+  TradingPair,
+} from '../../../core/services/trading-pairs.service';
+
+// Types and Interfaces
+export type TradingMode = 'spot' | 'cross';
+export type OrderSide = 'buy' | 'sell';
+export type OrderType = 'Market' | 'Limit';
+
+interface TradingFormState {
+  isLoading: boolean;
+  isSubmitting: boolean;
+  currentPrice: number;
+  availableBalance: number;
+  selectedPair: TradingPair | null;
+  currentTradingAccount: any;
+  walletBalances: WalletBalance[];
+}
+
+interface OrderValidation {
+  minQuantity: number;
+  maxQuantity: number;
+  quantityStep: number;
+  minNotional: number;
+  pricePrecision: number;
+  quantityPrecision: number;
+}
 
 @Component({
   selector: 'app-trading-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './trading-form.component.html',
   styleUrls: ['./trading-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TradingFormComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+  private readonly stateSubject$ = new BehaviorSubject<TradingFormState>({
+    isLoading: false,
+    isSubmitting: false,
+    currentPrice: 0,
+    availableBalance: 0,
+    selectedPair: null,
+    currentTradingAccount: null,
+    walletBalances: [],
+  });
 
+  // Service Injections
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly tradingService = inject(TradingService);
   private readonly positionService = inject(PositionService);
   private readonly walletService = inject(WalletService);
@@ -53,107 +102,220 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   private readonly signalRService = inject(SignalRService);
   private readonly tradingPairsService = inject(TradingPairsService);
 
+  // Form
   tradingForm!: FormGroup;
 
+  // Component State
   currentTradingMode: TradingMode = 'spot';
   currentOrderSide: OrderSide = 'buy';
   showTradingModal = false;
-  isSubmitting = false;
-  isLoading = false;
+  currentViewTab: 'positions' | 'orders' = 'orders';
 
-  // New properties for open orders
-  currentViewTab: 'positions' | 'orders' = 'positions';
+  // Data
+  positions: Position[] = [];
   openOrders: OpenOrder[] = [];
   isLoadingOrders = false;
-
-  currentPrice = 0;
-  selectedPair: any = null;
-
-  // Account Data
-  currentTradingAccount: any = null;
-  availableBalance = 0;
-  positions: Position[] = [];
   totalPnL = 0;
 
-  // Configuration Constants
+  // Configuration
   readonly leverageOptions = [1, 2, 5, 10, 20, 50, 100];
   readonly percentageOptions = [25, 50, 75, 100];
-  readonly minOrderValue = 10; // Minimum order value in USDT
+  readonly MIN_ORDER_VALUE_USDT = 10;
 
-  constructor() {
-    this.initializeForm();
+  // Validation Rules
+  private orderValidation: OrderValidation = {
+    minQuantity: 0.00001,
+    maxQuantity: 100000,
+    quantityStep: 0.00001,
+    minNotional: 10,
+    pricePrecision: 2,
+    quantityPrecision: 5,
+  };
+
+  // Getters for template
+  get state(): TradingFormState {
+    return this.stateSubject$.value;
+  }
+
+  get isLoading(): boolean {
+    return this.state.isLoading;
+  }
+
+  get isSubmitting(): boolean {
+    return this.state.isSubmitting;
+  }
+
+  get currentPrice(): number {
+    return this.state.currentPrice;
+  }
+
+  get availableBalance(): number {
+    return this.state.availableBalance;
+  }
+
+  get selectedPair(): TradingPair | null {
+    return this.state.selectedPair;
   }
 
   ngOnInit(): void {
+    this.initializeForm();
     this.initializeComponent();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    document.body.style.overflow = 'auto';
+    this.resetModalState();
   }
 
   /**
-   * Initialize the component and setup all necessary subscriptions
-   */
-  private async initializeComponent(): Promise<void> {
-    this.isLoading = true;
-
-    try {
-      await this.loadTradingAccount();
-      this.setupFormSubscriptions();
-      this.setupMarketDataSubscriptions();
-      this.setupPositionSubscriptions();
-      this.setupOrderSubscriptions();
-      await this.loadInitialData();
-    } catch (error) {
-      this.handleComponentError(
-        'Failed to initialize trading component',
-        error
-      );
-    } finally {
-      this.isLoading = false;
-    }
-  }
-
-  /**
-   * Initialize the reactive form with proper validation
+   * Initialize the reactive form with custom validators
    */
   private initializeForm(): void {
     this.tradingForm = this.fb.group({
-      price: [0, [Validators.required, Validators.min(0.01)]],
-      quantity: [0, [Validators.required, Validators.min(0.00001)]],
+      orderType: ['Market', [Validators.required]],
+      price: [
+        { value: 0, disabled: true },
+        [Validators.required, this.priceValidator.bind(this)],
+      ],
+      quantity: [
+        0,
+        [
+          Validators.required,
+          Validators.min(this.orderValidation.minQuantity),
+          this.quantityValidator.bind(this),
+        ],
+      ],
       percentage: [0, [Validators.min(0), Validators.max(100)]],
       leverage: [
         1,
         [Validators.required, Validators.min(1), Validators.max(100)],
       ],
-      stopLoss: [null, [Validators.min(0.01)]],
-      takeProfit: [null, [Validators.min(0.01)]],
-      orderType: ['Market', [Validators.required]],
+      stopLoss: [null, [this.stopLossValidator.bind(this)]],
+      takeProfit: [null, [this.takeProfitValidator.bind(this)]],
+      total: [{ value: 0, disabled: true }],
     });
+
+    this.setupFormSubscriptions();
   }
 
   /**
-   * Setup form value change subscriptions with proper debouncing
+   * Custom validator for price
+   */
+  private priceValidator(control: AbstractControl): ValidationErrors | null {
+    const price = control.value;
+    if (!price || price <= 0) {
+      return { invalidPrice: 'Price must be greater than 0' };
+    }
+    return null;
+  }
+
+  /**
+   * Custom validator for quantity
+   */
+  private quantityValidator(control: AbstractControl): ValidationErrors | null {
+    const quantity = control.value;
+    if (!quantity || quantity <= 0) {
+      return { invalidQuantity: 'Quantity must be greater than 0' };
+    }
+
+    const total = quantity * (this.getFormPrice() || this.currentPrice);
+    if (total < this.MIN_ORDER_VALUE_USDT) {
+      return {
+        minNotional: `Minimum order value is ${this.MIN_ORDER_VALUE_USDT} USDT`,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Custom validator for stop loss
+   */
+  private stopLossValidator(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) return null;
+
+    const stopLoss = control.value;
+    const entryPrice = this.getFormPrice() || this.currentPrice;
+
+    if (this.currentOrderSide === 'buy' && stopLoss >= entryPrice) {
+      return {
+        invalidStopLoss:
+          'Stop loss must be below entry price for long positions',
+      };
+    }
+
+    if (this.currentOrderSide === 'sell' && stopLoss <= entryPrice) {
+      return {
+        invalidStopLoss:
+          'Stop loss must be above entry price for short positions',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Custom validator for take profit
+   */
+  private takeProfitValidator(
+    control: AbstractControl
+  ): ValidationErrors | null {
+    if (!control.value) return null;
+
+    const takeProfit = control.value;
+    const entryPrice = this.getFormPrice() || this.currentPrice;
+
+    if (this.currentOrderSide === 'buy' && takeProfit <= entryPrice) {
+      return {
+        invalidTakeProfit:
+          'Take profit must be above entry price for long positions',
+      };
+    }
+
+    if (this.currentOrderSide === 'sell' && takeProfit >= entryPrice) {
+      return {
+        invalidTakeProfit:
+          'Take profit must be below entry price for short positions',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Setup form value change subscriptions
    */
   private setupFormSubscriptions(): void {
-    // Handle percentage changes
+    // Order type changes
     this.tradingForm
-      .get('percentage')
+      .get('orderType')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((orderType) => {
+        const priceControl = this.tradingForm.get('price');
+        if (orderType === 'Market') {
+          priceControl?.disable();
+          priceControl?.setValue(this.currentPrice);
+        } else {
+          priceControl?.enable();
+        }
+        this.updateOrderTotal();
+      });
+
+    // Price changes
+    this.tradingForm
+      .get('price')
       ?.valueChanges.pipe(
         takeUntil(this.destroy$),
         debounceTime(300),
         distinctUntilChanged()
       )
-      .subscribe((percentage) => {
-        if (percentage > 0 && percentage <= 100) {
-          this.calculateQuantityFromPercentage(percentage);
-        }
+      .subscribe(() => {
+        this.updateOrderTotal();
+        this.validateStopLossAndTakeProfit();
       });
 
-    // Handle quantity changes
+    // Quantity changes
     this.tradingForm
       .get('quantity')
       ?.valueChanges.pipe(
@@ -161,48 +323,91 @@ export class TradingFormComponent implements OnInit, OnDestroy {
         debounceTime(300),
         distinctUntilChanged()
       )
-      .subscribe(() => {
+      .subscribe((quantity) => {
+        this.updateOrderTotal();
         this.updatePercentageFromQuantity();
       });
 
-    // Handle order type changes
+    // Percentage changes
     this.tradingForm
-      .get('orderType')
+      .get('percentage')
+      ?.valueChanges.pipe(
+        takeUntil(this.destroy$),
+        debounceTime(300),
+        distinctUntilChanged(),
+        filter((percentage) => percentage >= 0 && percentage <= 100)
+      )
+      .subscribe((percentage) => {
+        this.calculateQuantityFromPercentage(percentage);
+      });
+
+    // Leverage changes
+    this.tradingForm
+      .get('leverage')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
-      .subscribe((orderType) => {
-        if (orderType === 'Market') {
-          this.updateFormPrice();
-        }
+      .subscribe(() => {
+        this.updateMaxQuantity();
+        this.updatePercentageFromQuantity();
       });
   }
 
   /**
-   * Setup market data subscriptions for real-time updates
+   * Initialize component with data subscriptions
+   */
+  private async initializeComponent(): Promise<void> {
+    this.updateState({ isLoading: true });
+
+    try {
+      // Load trading account first
+      await this.loadTradingAccount();
+
+      // Setup real-time subscriptions
+      this.setupMarketDataSubscriptions();
+      this.setupPositionSubscriptions();
+      this.setupOrderSubscriptions();
+
+      // Load initial data
+      await this.loadInitialData();
+    } catch (error) {
+      this.handleError('Failed to initialize trading component', error);
+    } finally {
+      this.updateState({ isLoading: false });
+    }
+  }
+
+  /**
+   * Setup market data subscriptions
    */
   private setupMarketDataSubscriptions(): void {
-    // Subscribe to selected trading pair changes
+    // Selected pair changes
     this.tradingPairsService.selectedPair$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        filter((pair) => pair !== null)
+      )
       .subscribe((pair) => {
-        if (pair && pair.symbol !== this.selectedPair?.symbol) {
-          this.selectedPair = pair;
-          this.loadMarketData();
-        }
+        this.updateState({ selectedPair: pair });
+        this.updateOrderValidation(pair!);
+        this.loadTickerData(pair!.symbol);
       });
 
-    // Subscribe to real-time price updates
+    // Real-time price updates
     this.signalRService.tickerData$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        filter((data) => data.symbol === this.state.selectedPair?.symbol)
+      )
       .subscribe((tickerData) => {
-        if (tickerData.symbol === this.selectedPair?.symbol) {
-          this.currentPrice = tickerData.lastPrice;
-          this.updateFormPrice();
+        this.updateState({ currentPrice: tickerData.lastPrice });
+        if (this.tradingForm.get('orderType')?.value === 'Market') {
+          this.tradingForm.patchValue({ price: tickerData.lastPrice });
         }
+        this.updateOrderTotal();
       });
   }
 
   /**
-   * Setup position subscriptions for real-time position updates
+   * Setup position subscriptions
    */
   private setupPositionSubscriptions(): void {
     this.positionService.positions$
@@ -210,214 +415,227 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       .subscribe((positions) => {
         this.positions = positions;
         this.calculateTotalPnL();
+        this.cdr.markForCheck();
       });
   }
 
   /**
-   * Setup order subscriptions for real-time order updates
+   * Setup order subscriptions
    */
   private setupOrderSubscriptions(): void {
     this.tradingService.openOrders$
       .pipe(takeUntil(this.destroy$))
       .subscribe((orders) => {
         this.openOrders = orders;
+        this.cdr.markForCheck();
       });
   }
 
   /**
-   * Load the current trading account
+   * Load trading account
    */
   private async loadTradingAccount(): Promise<void> {
-    try {
-      const accounts = await this.tradingAccountService
-        .getUserAccounts()
-        .toPromise();
+    const accounts = await this.tradingAccountService
+      .getUserAccounts()
+      .toPromise();
 
-      if (accounts && accounts.length > 0) {
-        this.currentTradingAccount =
-          accounts.find((a) => a.status === 'Active') || accounts[0];
-        this.tradingAccountService.setCurrentAccount(
-          this.currentTradingAccount
-        );
-      } else {
-        throw new Error('No trading accounts found');
-      }
-    } catch (error) {
-      this.handleComponentError('Failed to load trading account', error);
+    if (!accounts || accounts.length === 0) {
+      throw new Error('No trading accounts found');
     }
+
+    const activeAccount =
+      accounts.find((a) => a.status === 'Active') || accounts[0];
+    this.updateState({ currentTradingAccount: activeAccount });
+    this.tradingAccountService.setCurrentAccount(activeAccount);
   }
 
   /**
-   * Load all initial data required for the component
+   * Load initial data
    */
   private async loadInitialData(): Promise<void> {
-    if (!this.currentTradingAccount) return;
+    const promises = [this.loadWalletBalances(), this.loadOpenOrders()];
 
-    const loadingPromises = [
-      this.loadAvailableBalance(),
-      // this.loadPositions(),
-      this.loadOpenOrders(),
-      this.loadMarketData(),
-    ];
-
-    try {
-      await Promise.all(loadingPromises);
-    } catch (error) {
-      this.handleComponentError('Failed to load initial data', error);
+    if (this.currentTradingMode === 'cross') {
+      promises.push(this.loadPositions());
     }
+
+    await Promise.all(promises);
   }
 
   /**
-   * Load current market data for the selected trading pair
+   * Load wallet balances
    */
-  private async loadMarketData(): Promise<void> {
-    if (!this.selectedPair) return;
-
-    try {
-      const tickerData = await this.tradingPairsService
-        .getTickerData(this.selectedPair.symbol)
-        .toPromise();
-
-      if (tickerData) {
-        this.currentPrice = tickerData.lastPrice;
-        this.updateFormPrice();
-      }
-    } catch (error) {
-      this.notificationService.showWarning(
-        'Failed to load current market price'
-      );
-    }
-  }
-
-  /**
-   * Load available balance for trading
-   */
-  private async loadAvailableBalance(): Promise<void> {
-    if (!this.currentTradingAccount) return;
+  private async loadWalletBalances(): Promise<void> {
+    if (!this.state.currentTradingAccount) return;
 
     try {
       const balances = await this.walletService
-        .getWallets(this.currentTradingAccount.id)
+        .getWallets(this.state.currentTradingAccount.id)
         .toPromise();
-      const usdtBalance = balances?.find((b) => b.currency === 'USDT');
-      this.availableBalance = usdtBalance?.availableBalance || 0;
+
+      if (balances) {
+        this.updateState({ walletBalances: balances });
+        this.updateAvailableBalance();
+      }
     } catch (error) {
-      this.notificationService.showWarning('Failed to load wallet balance');
+      this.handleError('Failed to load wallet balances', error);
     }
   }
 
   /**
-   * Load current positions
+   * Update available balance based on selected pair and order side
    */
-  // async loadPositions(): Promise<void> {
-  //   if (!this.currentTradingAccount) return;
+  private updateAvailableBalance(): void {
+    const { walletBalances, selectedPair } = this.state;
 
-  //   try {
-  //     const positions = await this.positionService
-  //       .getPositions(this.currentTradingAccount.id)
-  //       .toPromise();
-  //     this.positions = positions || [];
-  //     this.calculateTotalPnL();
-  //   } catch (error) {
-  //     this.notificationService.showWarning('Failed to load open positions');
-  //   }
-  // }
+    if (!walletBalances || !selectedPair) {
+      this.updateState({ availableBalance: 0 });
+      return;
+    }
+
+    let balance = 0;
+
+    if (this.currentOrderSide === 'buy') {
+      // For buy orders, use quote asset (usually USDT)
+      const quoteBalance = walletBalances.find(
+        (b) => b.currency === selectedPair.quoteAsset
+      );
+      balance = quoteBalance?.availableBalance || 0;
+    } else {
+      // For sell orders, use base asset
+      const baseBalance = walletBalances.find(
+        (b) => b.currency === selectedPair.baseAsset
+      );
+      balance = baseBalance?.availableBalance || 0;
+    }
+
+    this.updateState({ availableBalance: balance });
+  }
 
   /**
-   * Load open orders (NEW METHOD)
+   * Load ticker data for current pair
+   */
+  private async loadTickerData(symbol: string): Promise<void> {
+    try {
+      const tickerData = await this.tradingPairsService
+        .getTickerData(symbol)
+        .toPromise();
+
+      if (tickerData) {
+        this.updateState({ currentPrice: tickerData.lastPrice });
+        if (this.tradingForm.get('orderType')?.value === 'Market') {
+          this.tradingForm.patchValue({ price: tickerData.lastPrice });
+        }
+        this.updateOrderTotal();
+      }
+    } catch (error) {
+      console.error('Failed to load ticker data:', error);
+    }
+  }
+
+  /**
+   * Load open positions
+   */
+  private async loadPositions(): Promise<void> {
+    if (!this.state.currentTradingAccount) return;
+
+    try {
+      const positions = await this.positionService
+        .getPositions(this.state.currentTradingAccount.id)
+        .toPromise();
+
+      this.positions = positions || [];
+      this.calculateTotalPnL();
+    } catch (error) {
+      console.error('Failed to load positions:', error);
+    }
+  }
+
+  /**
+   * Load open orders
    */
   async loadOpenOrders(): Promise<void> {
-    if (!this.currentTradingAccount?.id) {
-      console.warn('No trading account available for loading orders');
-      return;
-    }
-
-    // Prevent multiple simultaneous calls
-    if (this.isLoadingOrders) {
-      console.log('Already loading orders, skipping duplicate call');
-      return;
-    }
+    if (!this.state.currentTradingAccount?.id || this.isLoadingOrders) return;
 
     this.isLoadingOrders = true;
-    console.log('Starting to load open orders...');
+    this.cdr.markForCheck();
 
     try {
       const result = await this.tradingService
-        .getOpenOrders(this.currentTradingAccount.id, 1, 20)
+        .getOpenOrders(this.state.currentTradingAccount.id, 1, 20)
         .toPromise();
 
-      console.log('Orders API response:', result);
-
-      // Ensure we handle the response correctly
       if (result) {
         this.openOrders = result.items || [];
-        console.log(`Loaded ${this.openOrders.length} orders successfully`);
-      } else {
-        console.warn('No result from orders API');
-        this.openOrders = [];
       }
-    } catch (error: any) {
-      console.error('Error loading open orders:', error);
-      this.notificationService.showWarning('Failed to load open orders');
-      this.openOrders = []; // Ensure we have a fallback state
+    } catch (error) {
+      this.handleError('Failed to load open orders', error);
     } finally {
-      // Always ensure loading state is reset
       this.isLoadingOrders = false;
-      console.log('Finished loading orders, isLoadingOrders set to false');
+      this.cdr.markForCheck();
     }
   }
 
   /**
-   * Cancel an open order (NEW METHOD)
+   * Update order validation based on trading pair
    */
-  async cancelOrder(orderId: string): Promise<void> {
-    try {
-      await this.tradingService.cancelOrder(orderId).toPromise();
-      this.notificationService.showSuccess('Order cancelled successfully');
+  private updateOrderValidation(pair: TradingPair): void {
+    if (!pair.filters) return;
 
-      // Refresh orders after cancelling
-      await this.loadOpenOrders();
-      await this.loadAvailableBalance();
-    } catch (error: any) {
-      console.error('Failed to cancel order:', error);
-      this.notificationService.showError(
-        error.message || 'Failed to cancel order'
+    const lotSizeFilter = pair.filters.find((f) => f.filterType === 'LOT_SIZE');
+    const priceFilter = pair.filters.find(
+      (f) => f.filterType === 'PRICE_FILTER'
+    );
+    const notionalFilter = pair.filters.find(
+      (f) => f.filterType === 'MIN_NOTIONAL'
+    );
+
+    if (lotSizeFilter) {
+      this.orderValidation.minQuantity = lotSizeFilter.minQty || 0.00001;
+      this.orderValidation.maxQuantity = lotSizeFilter.maxQty || 100000;
+      this.orderValidation.quantityStep = lotSizeFilter.stepSize || 0.00001;
+    }
+
+    if (priceFilter) {
+      this.orderValidation.pricePrecision = this.getPrecision(
+        priceFilter.tickSize || 0.01
       );
     }
-  }
 
-  /**
-   * Switch between positions and orders view (NEW METHOD)
-   */
-  switchViewTab(tab: 'positions' | 'orders'): void {
-    this.currentViewTab = 'orders'; //tab;
-    if (tab === 'orders') {
-      this.loadOpenOrders();
+    if (notionalFilter) {
+      this.orderValidation.minNotional = notionalFilter.minNotional || 10;
     }
+
+    this.orderValidation.quantityPrecision = pair.baseAssetPrecision || 8;
   }
 
   /**
-   * Update form price based on current market price
+   * Get decimal precision from step size
    */
-  private updateFormPrice(): void {
-    if (
-      this.tradingForm.get('orderType')?.value === 'Market' &&
-      this.currentPrice > 0
-    ) {
-      this.tradingForm.patchValue(
-        { price: this.currentPrice },
-        { emitEvent: false }
-      );
-    }
+  private getPrecision(stepSize: number): number {
+    const str = stepSize.toString();
+    const decimalIndex = str.indexOf('.');
+    return decimalIndex === -1 ? 0 : str.length - decimalIndex - 1;
   }
 
   /**
-   * Calculate quantity based on percentage of available balance
+   * Update form total
+   */
+  private updateOrderTotal(): void {
+    const quantity = this.tradingForm.get('quantity')?.value || 0;
+    const price = this.getFormPrice() || this.currentPrice;
+    const total = quantity * price;
+
+    this.tradingForm.patchValue({ total }, { emitEvent: false });
+  }
+
+  /**
+   * Calculate quantity from percentage
    */
   private calculateQuantityFromPercentage(percentage: number): void {
-    if (!this.currentPrice || !this.availableBalance) return;
+    if (!this.availableBalance || !this.currentPrice) return;
 
-    const price = this.tradingForm.get('price')?.value || this.currentPrice;
+    const price = this.getFormPrice() || this.currentPrice;
     const leverage =
       this.currentTradingMode === 'cross'
         ? this.tradingForm.get('leverage')?.value || 1
@@ -429,27 +647,29 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       const effectiveBalance = this.availableBalance * leverage;
       maxQuantity = effectiveBalance / price;
     } else {
-      // For sell orders, we need to check the base asset balance
-      // This would require additional wallet service integration
-      maxQuantity = 1; // Placeholder - implement based on actual base asset balance
+      maxQuantity = this.availableBalance;
     }
 
-    const quantity = (maxQuantity * percentage) / 100;
+    const quantity = this.roundToStep(
+      (maxQuantity * percentage) / 100,
+      this.orderValidation.quantityStep
+    );
+
     this.tradingForm.patchValue({ quantity }, { emitEvent: false });
+    this.updateOrderTotal();
   }
 
   /**
-   * Update percentage based on entered quantity
+   * Update percentage from quantity
    */
   private updatePercentageFromQuantity(): void {
     const quantity = this.tradingForm.get('quantity')?.value || 0;
-    const price = this.tradingForm.get('price')?.value || this.currentPrice;
-
-    if (!quantity || !price || !this.availableBalance) {
+    if (!quantity || !this.availableBalance) {
       this.tradingForm.patchValue({ percentage: 0 }, { emitEvent: false });
       return;
     }
 
+    const price = this.getFormPrice() || this.currentPrice;
     const leverage =
       this.currentTradingMode === 'cross'
         ? this.tradingForm.get('leverage')?.value || 1
@@ -461,7 +681,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       const effectiveBalance = this.availableBalance * leverage;
       maxQuantity = effectiveBalance / price;
     } else {
-      maxQuantity = 1; // Placeholder
+      maxQuantity = this.availableBalance;
     }
 
     const percentage = Math.min(100, (quantity / maxQuantity) * 100);
@@ -469,7 +689,70 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Calculate total unrealized P&L from all positions
+   * Update maximum allowed quantity
+   */
+  private updateMaxQuantity(): void {
+    const maxQuantityValidator = this.getMaxQuantityValidator();
+    this.tradingForm
+      .get('quantity')
+      ?.setValidators([
+        Validators.required,
+        Validators.min(this.orderValidation.minQuantity),
+        maxQuantityValidator,
+        this.quantityValidator.bind(this),
+      ]);
+    this.tradingForm.get('quantity')?.updateValueAndValidity();
+  }
+
+  /**
+   * Get maximum quantity validator
+   */
+  private getMaxQuantityValidator(): (
+    control: AbstractControl
+  ) => ValidationErrors | null {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const quantity = control.value;
+      if (!quantity) return null;
+
+      const maxAllowed = this.getMaxAllowedQuantity();
+      if (quantity > maxAllowed) {
+        return { maxQuantity: `Maximum allowed quantity is ${maxAllowed}` };
+      }
+
+      return null;
+    };
+  }
+
+  /**
+   * Get maximum allowed quantity based on balance and leverage
+   */
+  private getMaxAllowedQuantity(): number {
+    if (!this.availableBalance || !this.currentPrice) return 0;
+
+    const price = this.getFormPrice() || this.currentPrice;
+    const leverage =
+      this.currentTradingMode === 'cross'
+        ? this.tradingForm.get('leverage')?.value || 1
+        : 1;
+
+    if (this.currentOrderSide === 'buy') {
+      const effectiveBalance = this.availableBalance * leverage;
+      return effectiveBalance / price;
+    } else {
+      return this.availableBalance;
+    }
+  }
+
+  /**
+   * Validate stop loss and take profit
+   */
+  private validateStopLossAndTakeProfit(): void {
+    this.tradingForm.get('stopLoss')?.updateValueAndValidity();
+    this.tradingForm.get('takeProfit')?.updateValueAndValidity();
+  }
+
+  /**
+   * Calculate total P&L
    */
   private calculateTotalPnL(): void {
     this.totalPnL = this.positions.reduce(
@@ -479,154 +762,105 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Validate the current form state
-   */
-  private validateForm(): string | null {
-    if (!this.currentTradingAccount) {
-      return 'No trading account selected';
-    }
-
-    if (!this.selectedPair) {
-      return 'No trading pair selected';
-    }
-
-    if (this.tradingForm.invalid) {
-      return 'Please correct form errors';
-    }
-
-    const quantity = this.tradingForm.get('quantity')?.value;
-    const price = this.tradingForm.get('price')?.value;
-
-    if (!quantity || quantity <= 0) {
-      return 'Please enter a valid quantity';
-    }
-
-    if (!price || price <= 0) {
-      return 'Please enter a valid price';
-    }
-
-    const orderValue = quantity * price;
-    if (orderValue < this.minOrderValue) {
-      return `Minimum order value is ${this.minOrderValue} USDT`;
-    }
-
-    if (this.currentOrderSide === 'buy' && orderValue > this.availableBalance) {
-      return 'Insufficient balance';
-    }
-
-    return null;
-  }
-
-  /**
-   * Handle component-level errors
-   */
-  private handleComponentError(message: string, error: any): void {
-    console.error(message, error);
-    this.notificationService.showError(
-      `${message}: ${error?.message || 'Unknown error'}`
-    );
-  }
-
-  // Public Methods
-
-  /**
-   * Set the trading mode (Spot or Cross)
-   */
-  setTradingMode(mode: TradingMode): void {
-    this.currentTradingMode = mode;
-
-    if (mode === 'spot') {
-      this.tradingForm.patchValue({ leverage: 1 });
-    }
-
-    this.updatePercentageFromQuantity();
-  }
-
-  /**
-   * Set the order side (Buy or Sell)
-   */
-  setOrderSide(side: OrderSide): void {
-    this.currentOrderSide = side;
-    this.updatePercentageFromQuantity();
-  }
-
-  /**
-   * Set percentage for position sizing
-   */
-  setPercentage(percentage: number): void {
-    this.tradingForm.patchValue({ percentage });
-  }
-
-  /**
-   * Set order type (Market or Limit)
-   */
-  setOrderType(type: 'Market' | 'Limit'): void {
-    this.tradingForm.patchValue({ orderType: type });
-  }
-
-  /**
-   * Execute a trade based on current form values and trading mode
+   * Execute trade
    */
   async executeTrade(): Promise<void> {
-    const validationError = this.validateForm();
-    if (validationError) {
-      this.notificationService.showError(validationError);
-      return;
-    }
+    if (!this.isFormValid() || this.isSubmitting) return;
 
-    if (this.isSubmitting) return;
-
-    this.isSubmitting = true;
+    this.updateState({ isSubmitting: true });
 
     try {
-      const formValue = this.tradingForm.value;
+      const formValue = this.tradingForm.getRawValue();
 
       if (this.currentTradingMode === 'spot') {
-        await this.executeSpotTrade(formValue);
+        await this.executeSpotOrder(formValue);
       } else {
-        await this.executeCrossTrade(formValue);
+        await this.executeCrossOrder(formValue);
       }
 
+      this.notificationService.showSuccess('Order placed successfully');
       this.resetForm();
-      this.notificationService.showSuccess('Trade executed successfully');
 
-      // Refresh data after successful trade
-      await this.loadInitialData();
+      // Reload data
+      await Promise.all([
+        this.loadWalletBalances(),
+        this.loadOpenOrders(),
+        this.currentTradingMode === 'cross'
+          ? this.loadPositions()
+          : Promise.resolve(),
+      ]);
     } catch (error: any) {
-      console.error('Trade execution failed:', error);
-      this.notificationService.showError(
-        error.message || 'Trade execution failed'
-      );
+      this.handleError('Failed to execute trade', error);
     } finally {
-      this.isSubmitting = false;
+      this.updateState({ isSubmitting: false });
     }
   }
 
   /**
-   * Execute a spot trade
+   * Execute spot order
    */
-  private async executeSpotTrade(formValue: any): Promise<void> {
+  private async executeSpotOrder(formValue: any): Promise<void> {
     const request: CreateOrderRequest = {
-      tradingAccountId: this.currentTradingAccount.id,
-      symbol: this.selectedPair.symbol,
+      tradingAccountId: this.state.currentTradingAccount.id,
+      symbol: this.state.selectedPair!.symbol,
       orderType: formValue.orderType,
       side: this.currentOrderSide === 'buy' ? 'Buy' : 'Sell',
-      quantity: formValue.quantity,
-      price: formValue.orderType === 'Limit' ? formValue.price : undefined,
+      quantity: this.roundToStep(
+        formValue.quantity,
+        this.orderValidation.quantityStep
+      ),
+      price:
+        formValue.orderType === 'Limit'
+          ? this.roundToStep(
+              formValue.price,
+              Math.pow(10, -this.orderValidation.pricePrecision)
+            )
+          : undefined,
     };
 
-    await this.tradingService.createOrder(request).toPromise();
+    if (formValue.orderType === 'Market') {
+      if (this.currentOrderSide === 'buy') {
+        await this.tradingService
+          .createMarketBuyOrder(
+            request.tradingAccountId,
+            request.symbol,
+            request.quantity
+          )
+          .toPromise();
+      } else {
+        await this.tradingService
+          .createMarketSellOrder(
+            request.tradingAccountId,
+            request.symbol,
+            request.quantity
+          )
+          .toPromise();
+      }
+    } else {
+      await this.tradingService
+        .createLimitOrder(
+          request.tradingAccountId,
+          request.symbol,
+          request.side,
+          request.quantity,
+          request.price!
+        )
+        .toPromise();
+    }
   }
 
   /**
-   * Execute a cross/futures trade
+   * Execute cross/futures order
    */
-  private async executeCrossTrade(formValue: any): Promise<void> {
+  private async executeCrossOrder(formValue: any): Promise<void> {
     const request: CreatePositionRequest = {
-      tradingAccountId: this.currentTradingAccount.id,
-      symbol: this.selectedPair.symbol,
+      tradingAccountId: this.state.currentTradingAccount.id,
+      symbol: this.state.selectedPair!.symbol,
       side: this.currentOrderSide === 'buy' ? 'Long' : 'Short',
-      quantity: formValue.quantity,
+      quantity: this.roundToStep(
+        formValue.quantity,
+        this.orderValidation.quantityStep
+      ),
       leverage: formValue.leverage,
       stopLoss: formValue.stopLoss || undefined,
       takeProfit: formValue.takeProfit || undefined,
@@ -636,26 +870,35 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Close a specific position
+   * Cancel order
+   */
+  async cancelOrder(orderId: string): Promise<void> {
+    try {
+      await this.tradingService.cancelOrder(orderId).toPromise();
+      this.notificationService.showSuccess('Order cancelled successfully');
+      await this.loadOpenOrders();
+      await this.loadWalletBalances();
+    } catch (error) {
+      this.handleError('Failed to cancel order', error);
+    }
+  }
+
+  /**
+   * Close position
    */
   async closePosition(positionId: string): Promise<void> {
     try {
       await this.positionService.closePosition(positionId).toPromise();
       this.notificationService.showSuccess('Position closed successfully');
-
-      // Refresh positions after closing
-      // await this.loadPositions();
-      await this.loadAvailableBalance();
-    } catch (error: any) {
-      console.error('Failed to close position:', error);
-      this.notificationService.showError(
-        error.message || 'Failed to close position'
-      );
+      await this.loadPositions();
+      await this.loadWalletBalances();
+    } catch (error) {
+      this.handleError('Failed to close position', error);
     }
   }
 
   /**
-   * Reset the form to initial state
+   * Reset form to initial state
    */
   private resetForm(): void {
     this.tradingForm.patchValue({
@@ -663,30 +906,76 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       percentage: 0,
       stopLoss: null,
       takeProfit: null,
+      total: 0,
     });
+
+    if (this.tradingForm.get('orderType')?.value === 'Limit') {
+      this.tradingForm.patchValue({ price: this.currentPrice });
+    }
   }
 
+  // Public methods for template
+
   /**
-   * Track by function for position list performance
+   * Set trading mode
    */
-  trackByPositionId(index: number, position: Position): string {
-    return position.id;
+  setTradingMode(mode: TradingMode): void {
+    this.currentTradingMode = mode;
+
+    if (mode === 'spot') {
+      this.tradingForm.patchValue({ leverage: 1 });
+      this.tradingForm.get('leverage')?.disable();
+      this.tradingForm.get('stopLoss')?.disable();
+      this.tradingForm.get('takeProfit')?.disable();
+    } else {
+      this.tradingForm.get('leverage')?.enable();
+      this.tradingForm.get('stopLoss')?.enable();
+      this.tradingForm.get('takeProfit')?.enable();
+    }
+
+    this.updateMaxQuantity();
+    this.updatePercentageFromQuantity();
   }
 
   /**
-   * Track by function for order list performance (NEW METHOD)
+   * Set order side
    */
-  trackByOrderId(index: number, order: OpenOrder): string {
-    return order.id;
+  setOrderSide(side: OrderSide): void {
+    this.currentOrderSide = side;
+    this.updateAvailableBalance();
+    this.updateMaxQuantity();
+    this.validateStopLossAndTakeProfit();
   }
 
-  // Modal Management
+  /**
+   * Set order type
+   */
+  setOrderType(type: OrderType): void {
+    this.tradingForm.patchValue({ orderType: type });
+  }
 
   /**
-   * Open trading modal for mobile
+   * Set percentage
+   */
+  setPercentage(percentage: number): void {
+    this.tradingForm.patchValue({ percentage });
+  }
+
+  /**
+   * Switch view tab
+   */
+  switchViewTab(tab: 'positions' | 'orders'): void {
+    this.currentViewTab = tab;
+    if (tab === 'orders' && !this.isLoadingOrders) {
+      this.loadOpenOrders();
+    }
+  }
+
+  /**
+   * Open trading modal
    */
   openTradingModal(mode: TradingMode): void {
-    this.currentTradingMode = mode;
+    this.setTradingMode(mode);
     this.showTradingModal = true;
     document.body.style.overflow = 'hidden';
   }
@@ -696,62 +985,77 @@ export class TradingFormComponent implements OnInit, OnDestroy {
    */
   closeTradingModal(): void {
     this.showTradingModal = false;
-    document.body.style.overflow = 'auto';
+    this.resetModalState();
   }
 
-  @HostListener('document:keydown.escape', ['$event'])
-  onEscapeKey(event: KeyboardEvent): void {
-    if (this.showTradingModal) {
-      this.closeTradingModal();
+  /**
+   * Check if form is valid
+   */
+  isFormValid(): boolean {
+    return this.tradingForm.valid && !this.isSubmitting;
+  }
+
+  // Utility methods
+
+  /**
+   * Get form price
+   */
+  private getFormPrice(): number {
+    return this.tradingForm.get('price')?.value || 0;
+  }
+
+  /**
+   * Round to step
+   */
+  private roundToStep(value: number, step: number): number {
+    return Math.round(value / step) * step;
+  }
+
+  /**
+   * Format price
+   */
+  formatPrice(price: number): string {
+    if (!price) return '0.00';
+
+    if (price >= 1) {
+      return price.toFixed(2);
+    } else if (price >= 0.01) {
+      return price.toFixed(4);
+    } else {
+      return price.toFixed(8);
     }
   }
 
-  // Utility Methods
-
   /**
-   * Format price for display
+   * Format size
    */
-  formatPrice(price: number): string {
-    if (price >= 1) return price.toFixed(2);
-    if (price >= 0.01) return price.toFixed(4);
-    return price.toFixed(6);
+  formatSize(size: number): string {
+    if (!size) return '0';
+
+    if (size >= 1) {
+      return size.toFixed(3);
+    } else {
+      return size.toFixed(this.orderValidation.quantityPrecision);
+    }
   }
 
   /**
-   * Format P&L for display
+   * Format P&L
    */
   formatPnL(pnl: number): string {
-    return pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+    const formatted = Math.abs(pnl).toFixed(2);
+    return pnl >= 0 ? `+$${formatted}` : `-$${formatted}`;
   }
 
   /**
-   * Get CSS class for P&L display
+   * Get P&L class
    */
   getPnLClass(pnl: number): string {
     return pnl >= 0 ? 'text-green-400' : 'text-red-400';
   }
 
   /**
-   * Get CSS class for order status (NEW METHOD)
-   */
-  getStatusClass(status: string): string {
-    switch (status.toLowerCase()) {
-      case 'pending':
-      case 'open':
-        return 'text-yellow-400 bg-yellow-950/50 border-yellow-800/50';
-      case 'partiallyfilled':
-        return 'text-blue-400 bg-blue-950/50 border-blue-800/50';
-      case 'filled':
-        return 'text-green-400 bg-green-950/50 border-green-800/50';
-      case 'cancelled':
-        return 'text-red-400 bg-red-950/50 border-red-800/50';
-      default:
-        return 'text-gray-400 bg-gray-950/50 border-gray-800/50';
-    }
-  }
-
-  /**
-   * Get order side class (NEW METHOD)
+   * Get order side class
    */
   getOrderSideClass(side: string): string {
     return side.toLowerCase() === 'buy'
@@ -760,44 +1064,77 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Check if form is valid for submission
+   * Get status class
    */
-  isFormValid(): boolean {
+  getStatusClass(status: string): string {
+    const statusMap: Record<string, string> = {
+      pending: 'text-yellow-400 bg-yellow-950/50 border-yellow-800/50',
+      open: 'text-yellow-400 bg-yellow-950/50 border-yellow-800/50',
+      partiallyfilled: 'text-blue-400 bg-blue-950/50 border-blue-800/50',
+      filled: 'text-green-400 bg-green-950/50 border-green-800/50',
+      cancelled: 'text-red-400 bg-red-950/50 border-red-800/50',
+      rejected: 'text-red-400 bg-red-950/50 border-red-800/50',
+    };
+
     return (
-      this.tradingForm.valid &&
-      this.tradingForm.get('quantity')?.value > 0 &&
-      (this.tradingForm.get('orderType')?.value === 'Market' ||
-        this.tradingForm.get('price')?.value > 0) &&
-      !this.isSubmitting
+      statusMap[status.toLowerCase()] ||
+      'text-gray-400 bg-gray-950/50 border-gray-800/50'
     );
   }
 
   /**
-   * Get current order value in USDT
+   * Track by position ID
    */
-  getCurrentOrderValue(): number {
-    const quantity = this.tradingForm.get('quantity')?.value || 0;
-    const price = this.tradingForm.get('price')?.value || this.currentPrice;
-    return quantity * price;
+  trackByPositionId(index: number, position: Position): string {
+    return position.id;
   }
 
   /**
-   * Get maximum position size based on balance and leverage
+   * Track by order ID
    */
-  getMaxPositionSize(): number {
-    if (!this.availableBalance || !this.currentPrice) return 0;
-
-    const leverage =
-      this.currentTradingMode === 'cross'
-        ? this.tradingForm.get('leverage')?.value || 1
-        : 1;
-
-    return (this.availableBalance * leverage) / this.currentPrice;
+  trackByOrderId(index: number, order: OpenOrder): string {
+    return order.id;
   }
 
-  calculateClass(pct: number) {
-    return Math.abs(this.tradingForm.get('percentage')?.value - pct) < 1
-      ? 'bg-blue-600 text-white'
-      : 'bg-gray-700 text-gray-300 hover:bg-gray-600';
+  /**
+   * Handle escape key
+   */
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscapeKey(event: KeyboardEvent): void {
+    if (this.showTradingModal) {
+      this.closeTradingModal();
+    }
+  }
+
+  /**
+   * Update component state
+   */
+  private updateState(partial: Partial<TradingFormState>): void {
+    this.stateSubject$.next({
+      ...this.state,
+      ...partial,
+    });
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Handle errors
+   */
+  private handleError(message: string, error: any): void {
+    console.error(message, error);
+    const errorMessage =
+      error?.error?.detail || error?.message || 'An error occurred';
+    this.notificationService.showError(`${message}: ${errorMessage}`);
+  }
+
+  /**
+   * Reset modal state
+   */
+  private resetModalState(): void {
+    document.body.style.overflow = 'auto';
+  }
+
+  calcPerc(pct: number) {
+    return Math.abs((this.tradingForm.get('percentage')?.value || 0) - pct) < 1;
   }
 }

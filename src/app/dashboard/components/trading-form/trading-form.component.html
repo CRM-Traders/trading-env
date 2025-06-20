@@ -1,15 +1,15 @@
 <!-- Desktop Trading Form -->
-<div class="bg-gray-800 rounded-lg p-2 sm:p-3 hidden lg:block">
+<div
+  class="trading-form-container bg-gray-800 rounded-lg p-2 sm:p-3 hidden lg:block"
+>
   <!-- Trading Mode Toggle -->
   <div class="flex mb-3 bg-gray-700 rounded-lg p-1">
     <button
       (click)="setTradingMode('spot')"
-      [class]="
-        currentTradingMode === 'spot'
-          ? 'bg-green-600 text-white'
-          : 'text-gray-300 hover:text-white'
-      "
-      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors"
+      [class.active]="currentTradingMode === 'spot'"
+      [class.bg-green-600]="currentTradingMode === 'spot'"
+      [class.text-white]="currentTradingMode === 'spot'"
+      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors text-gray-300 hover:text-white"
     >
       <div class="flex items-center justify-center space-x-1">
         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -20,18 +20,23 @@
     </button>
     <button
       (click)="setTradingMode('cross')"
-      [class]="
-        currentTradingMode === 'cross'
-          ? 'bg-orange-600 text-white'
-          : 'text-gray-300 hover:text-white'
-      "
-      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors"
+      [class.active]="currentTradingMode === 'cross'"
+      [class.bg-orange-600]="currentTradingMode === 'cross'"
+      [class.text-white]="currentTradingMode === 'cross'"
+      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors text-gray-300 hover:text-white"
     >
       <div class="flex items-center justify-center space-x-1">
         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
         </svg>
-        <span>Cross</span>
+        <span
+          >Cross
+          {{
+            currentTradingMode === "cross"
+              ? "(" + tradingForm.get("leverage")?.value + "x)"
+              : ""
+          }}</span
+        >
       </div>
     </button>
   </div>
@@ -40,23 +45,19 @@
   <div class="flex mb-3 bg-gray-700 rounded-lg p-1">
     <button
       (click)="setOrderSide('buy')"
-      [class]="
-        currentOrderSide === 'buy'
-          ? 'bg-green-600 text-white'
-          : 'text-gray-300 hover:text-white'
-      "
-      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors"
+      [class.active]="currentOrderSide === 'buy'"
+      [class.bg-green-600]="currentOrderSide === 'buy'"
+      [class.text-white]="currentOrderSide === 'buy'"
+      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors text-gray-300 hover:text-white"
     >
       Buy
     </button>
     <button
       (click)="setOrderSide('sell')"
-      [class]="
-        currentOrderSide === 'sell'
-          ? 'bg-red-600 text-white'
-          : 'text-gray-300 hover:text-white'
-      "
-      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors"
+      [class.active]="currentOrderSide === 'sell'"
+      [class.bg-red-600]="currentOrderSide === 'sell'"
+      [class.text-white]="currentOrderSide === 'sell'"
+      class="flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors text-gray-300 hover:text-white"
     >
       Sell
     </button>
@@ -64,73 +65,103 @@
 
   <!-- Trading Form -->
   <form [formGroup]="tradingForm" (ngSubmit)="executeTrade()" class="space-y-3">
-    <!-- Order Type -->
+    <!-- Order Type Selection -->
     <div class="flex space-x-2">
       <button
         type="button"
         (click)="setOrderType('Market')"
-        [class]="
-          tradingForm.get('orderType')?.value === 'Market'
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-        "
-        class="flex-1 py-1 px-2 rounded text-xs font-medium transition-colors"
+        [class.active]="tradingForm.get('orderType')?.value === 'Market'"
+        [class.bg-blue-600]="tradingForm.get('orderType')?.value === 'Market'"
+        [class.text-white]="tradingForm.get('orderType')?.value === 'Market'"
+        class="flex-1 py-1 px-2 rounded text-xs font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
       >
         Market
       </button>
       <button
         type="button"
         (click)="setOrderType('Limit')"
-        [class]="
-          tradingForm.get('orderType')?.value === 'Limit'
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-        "
-        class="flex-1 py-1 px-2 rounded text-xs font-medium transition-colors"
+        [class.active]="tradingForm.get('orderType')?.value === 'Limit'"
+        [class.bg-blue-600]="tradingForm.get('orderType')?.value === 'Limit'"
+        [class.text-white]="tradingForm.get('orderType')?.value === 'Limit'"
+        class="flex-1 py-1 px-2 rounded text-xs font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
       >
         Limit
       </button>
     </div>
 
     <!-- Price Input -->
-    <div>
-      <label class="block text-xs text-gray-400 mb-1">Price</label>
+    <div class="form-group">
+      <label class="block text-xs text-gray-400 mb-1">
+        Price
+        <span
+          *ngIf="tradingForm.get('orderType')?.value === 'Market'"
+          class="text-gray-500"
+          >(Market Price)</span
+        >
+      </label>
       <div class="relative">
         <input
           type="number"
           formControlName="price"
           [readonly]="tradingForm.get('orderType')?.value === 'Market'"
-          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
+          class="form-input w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
           [class.bg-gray-600]="tradingForm.get('orderType')?.value === 'Market'"
+          [class.cursor-not-allowed]="
+            tradingForm.get('orderType')?.value === 'Market'
+          "
           placeholder="0.00"
-          step="0.01"
+          [step]="0.01"
         />
-        <span class="absolute right-2 top-2 text-gray-400 text-xs">USDT</span>
+        <span class="absolute right-2 top-2 text-gray-400 text-xs">{{
+          selectedPair?.quoteAsset || "USDT"
+        }}</span>
       </div>
       <div
         *ngIf="
-          tradingForm.get('price')?.invalid && tradingForm.get('price')?.touched
+          tradingForm.get('price')?.invalid &&
+          tradingForm.get('price')?.touched &&
+          tradingForm.get('orderType')?.value === 'Limit'
         "
         class="text-red-400 text-xs mt-1"
       >
-        Please enter a valid price
+        {{ tradingForm.get('price')?.errors?.['invalidPrice'] || 'Please enter a valid price' }}
       </div>
     </div>
 
     <!-- Quantity Input -->
-    <div>
-      <label class="block text-xs text-gray-400 mb-1">Quantity</label>
+    <div class="form-group">
+      <label class="block text-xs text-gray-400 mb-1">
+        Quantity
+        <span class="text-gray-500 float-right">
+          Max:
+          {{
+            formatSize(
+              currentOrderSide === "buy"
+                ? (availableBalance /
+                    (tradingForm.get("price")?.value || currentPrice)) *
+                    (currentTradingMode === "cross"
+                      ? tradingForm.get("leverage")?.value || 1
+                      : 1)
+                : availableBalance
+            )
+          }}
+        </span>
+      </label>
       <div class="relative">
         <input
           type="number"
           formControlName="quantity"
-          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
+          class="form-input w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
+          [class.border-red-500]="
+            tradingForm.get('quantity')?.invalid &&
+            tradingForm.get('quantity')?.touched
+          "
           placeholder="0.00"
-          step="0.00001"
+          [step]="0.00001"
         />
-        <span class="absolute right-2 top-2 text-gray-400 text-xs">
-          {{ selectedPair?.baseAsset || "BTC" }}
-        </span>
+        <span class="absolute right-2 top-2 text-gray-400 text-xs">{{
+          selectedPair?.baseAsset || "BTC"
+        }}</span>
       </div>
       <div
         *ngIf="
@@ -139,24 +170,32 @@
         "
         class="text-red-400 text-xs mt-1"
       >
-        Please enter a valid quantity
+        {{ tradingForm.get('quantity')?.errors?.['invalidQuantity'] || 
+           tradingForm.get('quantity')?.errors?.['minNotional'] ||
+           tradingForm.get('quantity')?.errors?.['maxQuantity'] ||
+           'Please enter a valid quantity' }}
       </div>
     </div>
 
-    <!-- Leverage (Cross Mode Only) -->
-    <div *ngIf="currentTradingMode === 'cross'">
-      <label class="block text-xs text-gray-400 mb-1">Leverage</label>
+    <!-- Leverage Slider (Cross Mode Only) -->
+    <div class="form-group" *ngIf="currentTradingMode === 'cross'">
+      <label class="block text-xs text-gray-400 mb-1">
+        Leverage:
+        <span class="text-white font-semibold"
+          >{{ tradingForm.get("leverage")?.value }}x</span
+        >
+      </label>
       <div class="flex flex-wrap gap-1 mb-2">
         <button
           type="button"
           *ngFor="let leverage of leverageOptions"
           (click)="tradingForm.patchValue({ leverage })"
-          [class]="
+          [class.active]="tradingForm.get('leverage')?.value === leverage"
+          [class.bg-orange-600]="
             tradingForm.get('leverage')?.value === leverage
-              ? 'bg-orange-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
           "
-          class="px-2 py-1 rounded text-xs font-medium transition-colors"
+          [class.text-white]="tradingForm.get('leverage')?.value === leverage"
+          class="px-2 py-1 rounded text-xs font-medium transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
         >
           {{ leverage }}x
         </button>
@@ -166,18 +205,22 @@
         formControlName="leverage"
         [min]="1"
         [max]="100"
-        class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+        class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider leverage-slider"
       />
     </div>
 
-    <div>
+    <!-- Percentage Selector -->
+    <div class="form-group">
+      <label class="block text-xs text-gray-400 mb-1">Amount</label>
       <div class="grid grid-cols-4 gap-1 mb-2">
         <button
           type="button"
           *ngFor="let pct of percentageOptions"
           (click)="setPercentage(pct)"
-          [class]="calculateClass(pct)"
-          class="text-xs py-1 rounded border border-gray-600 transition-colors"
+          [class.active]="calcPerc(pct)"
+          [class.bg-blue-600]="calcPerc(pct)"
+          [class.text-white]="calcPerc(pct)"
+          class="text-xs py-1 rounded border border-gray-600 transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
         >
           {{ pct }}%
         </button>
@@ -192,52 +235,123 @@
     </div>
 
     <!-- Advanced Options (Cross Mode) -->
-    <div *ngIf="currentTradingMode === 'cross'" class="space-y-2">
-      <div>
-        <label class="block text-xs text-gray-400 mb-1"
-          >Stop Loss (Optional)</label
-        >
-        <input
-          type="number"
-          formControlName="stopLoss"
-          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right text-xs focus:border-blue-500 focus:outline-none"
-          placeholder="0.00"
-          step="0.01"
-        />
+    <div
+      *ngIf="currentTradingMode === 'cross'"
+      class="space-y-2 border-t border-gray-700 pt-3"
+    >
+      <div class="text-xs text-gray-400 font-semibold mb-2">
+        Risk Management (Optional)
       </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1"
-          >Take Profit (Optional)</label
+
+      <div class="form-group">
+        <label class="block text-xs text-gray-400 mb-1">Stop Loss</label>
+        <div class="relative">
+          <input
+            type="number"
+            formControlName="stopLoss"
+            class="form-input w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
+            [class.border-red-500]="
+              tradingForm.get('stopLoss')?.invalid &&
+              tradingForm.get('stopLoss')?.touched
+            "
+            placeholder="0.00"
+            [step]="0.01"
+          />
+          <span class="absolute right-2 top-2 text-gray-400 text-xs">{{
+            selectedPair?.quoteAsset || "USDT"
+          }}</span>
+        </div>
+        <div
+          *ngIf="
+            tradingForm.get('stopLoss')?.invalid &&
+            tradingForm.get('stopLoss')?.touched
+          "
+          class="text-red-400 text-xs mt-1"
         >
-        <input
-          type="number"
-          formControlName="takeProfit"
-          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right text-xs focus:border-blue-500 focus:outline-none"
-          placeholder="0.00"
-          step="0.01"
-        />
+          {{ tradingForm.get('stopLoss')?.errors?.['invalidStopLoss'] || 'Invalid stop loss price' }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="block text-xs text-gray-400 mb-1">Take Profit</label>
+        <div class="relative">
+          <input
+            type="number"
+            formControlName="takeProfit"
+            class="form-input w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-white text-right pr-12 text-xs focus:border-blue-500 focus:outline-none"
+            [class.border-red-500]="
+              tradingForm.get('takeProfit')?.invalid &&
+              tradingForm.get('takeProfit')?.touched
+            "
+            placeholder="0.00"
+            [step]="0.01"
+          />
+          <span class="absolute right-2 top-2 text-gray-400 text-xs">{{
+            selectedPair?.quoteAsset || "USDT"
+          }}</span>
+        </div>
+        <div
+          *ngIf="
+            tradingForm.get('takeProfit')?.invalid &&
+            tradingForm.get('takeProfit')?.touched
+          "
+          class="text-red-400 text-xs mt-1"
+        >
+          {{ tradingForm.get('takeProfit')?.errors?.['invalidTakeProfit'] || 'Invalid take profit price' }}
+        </div>
       </div>
     </div>
 
-    <!-- Available Balance -->
-    <div class="bg-gray-700 p-2 rounded-lg">
+    <!-- Order Summary -->
+    <div class="bg-gray-700 p-2 rounded-lg space-y-1">
       <div class="flex justify-between text-xs">
-        <span class="text-gray-400">Available</span>
-        <span class="text-white"
-          >{{ availableBalance | number : "1.0-2" }} USDT</span
-        >
+        <span class="text-gray-400">Available Balance</span>
+        <span class="text-white font-medium">
+          {{ formatSize(availableBalance) }}
+          {{
+            currentOrderSide === "buy"
+              ? selectedPair?.quoteAsset || "USDT"
+              : selectedPair?.baseAsset || "BTC"
+          }}
+        </span>
+      </div>
+      <div class="flex justify-between text-xs">
+        <span class="text-gray-400">Order Value</span>
+        <span class="text-white font-medium">
+          {{ formatPrice(tradingForm.get("total")?.value || 0) }}
+          {{ selectedPair?.quoteAsset || "USDT" }}
+        </span>
       </div>
       <div
-        class="flex justify-between text-xs mt-1"
+        class="flex justify-between text-xs"
         *ngIf="currentTradingMode === 'cross'"
       >
-        <span class="text-gray-400">Max Position</span>
-        <span class="text-white">
+        <span class="text-gray-400">Margin Required</span>
+        <span class="text-white font-medium">
           {{
-            (availableBalance * (tradingForm.get("leverage")?.value || 1)) /
-              currentPrice | number : "1.4-4"
+            formatPrice(
+              (tradingForm.get("total")?.value || 0) /
+                (tradingForm.get("leverage")?.value || 1)
+            )
           }}
-          {{ selectedPair?.baseAsset || "BTC" }}
+          {{ selectedPair?.quoteAsset || "USDT" }}
+        </span>
+      </div>
+      <div
+        class="flex justify-between text-xs"
+        *ngIf="currentTradingMode === 'cross'"
+      >
+        <span class="text-gray-400">Est. Liquidation Price</span>
+        <span class="text-orange-400 font-medium">
+          {{
+            formatPrice(
+              currentOrderSide === "buy"
+                ? (tradingForm.get("price")?.value || currentPrice) *
+                    (1 - 0.8 / (tradingForm.get("leverage")?.value || 1))
+                : (tradingForm.get("price")?.value || currentPrice) *
+                    (1 + 0.8 / (tradingForm.get("leverage")?.value || 1))
+            )
+          }}
         </span>
       </div>
     </div>
@@ -246,11 +360,15 @@
     <button
       type="submit"
       [disabled]="!isFormValid() || isSubmitting"
-      [class]="
-        currentOrderSide === 'buy'
-          ? 'bg-green-600 hover:bg-green-700 disabled:bg-gray-600'
-          : 'bg-red-600 hover:bg-red-700 disabled:bg-gray-600'
+      [class.bg-green-600]="currentOrderSide === 'buy'"
+      [class.hover:bg-green-700]="
+        currentOrderSide === 'buy' && isFormValid() && !isSubmitting
       "
+      [class.bg-red-600]="currentOrderSide === 'sell'"
+      [class.hover:bg-red-700]="
+        currentOrderSide === 'sell' && isFormValid() && !isSubmitting
+      "
+      [class.disabled:bg-gray-600]="!isFormValid() || isSubmitting"
       class="w-full text-white py-2 rounded-lg font-medium transition-colors text-xs disabled:cursor-not-allowed"
     >
       <div class="flex items-center justify-center space-x-2">
@@ -280,7 +398,10 @@
               ? "Processing..."
               : (currentOrderSide === "buy" ? "Buy" : "Sell") +
                 " " +
-                (selectedPair?.baseAsset || "BTC")
+                (selectedPair?.baseAsset || "BTC") +
+                (currentTradingMode === "cross"
+                  ? " " + tradingForm.get("leverage")?.value + "x"
+                  : "")
           }}
         </span>
       </div>
@@ -288,82 +409,108 @@
   </form>
 </div>
 
-<!-- Open Positions & Orders Section -->
+<!-- Positions/Orders Section -->
 <div class="bg-gray-800 rounded-lg mt-0 lg:mt-4 p-2 sm:p-3">
   <!-- Header with Tabs -->
   <div class="flex items-center justify-between mb-3">
     <div class="flex items-center space-x-1">
-      <!-- Tab Buttons -->
-      <!-- <button
+      <button
+        *ngIf="currentTradingMode === 'cross'"
         (click)="switchViewTab('positions')"
-        [class]="
-          currentViewTab === 'positions'
-            ? 'bg-blue-600 text-white'
-            : 'text-gray-400 hover:text-white hover:bg-gray-700'
-        "
-        class="px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center space-x-1"
+        [class.active]="currentViewTab === 'positions'"
+        [class.bg-blue-600]="currentViewTab === 'positions'"
+        [class.text-white]="currentViewTab === 'positions'"
+        class="px-3 py-1 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white hover:bg-gray-700"
       >
-        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>Positions</span>
-        <span class="bg-gray-600 text-xs px-1 rounded">{{
-          positions.length
-        }}</span>
-      </button> -->
+        <div class="flex items-center space-x-1">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Positions</span>
+          <span class="bg-gray-600 text-xs px-1 rounded">{{
+            positions.length
+          }}</span>
+        </div>
+      </button>
 
       <button
         (click)="switchViewTab('orders')"
-        [class]="
-          currentViewTab === 'orders'
-            ? 'bg-blue-600 text-white'
-            : 'text-gray-400 hover:text-white hover:bg-gray-700'
-        "
-        class="px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center space-x-1"
+        [class.active]="currentViewTab === 'orders'"
+        [class.bg-blue-600]="currentViewTab === 'orders'"
+        [class.text-white]="currentViewTab === 'orders'"
+        class="px-3 py-1 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white hover:bg-gray-700"
       >
-        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <span>Orders</span>
-        <span class="bg-gray-600 text-xs px-1 rounded">{{
-          openOrders.length
-        }}</span>
+        <div class="flex items-center space-x-1">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
+          </svg>
+          <span>Orders</span>
+          <span class="bg-gray-600 text-xs px-1 rounded">{{
+            openOrders.length
+          }}</span>
+        </div>
       </button>
     </div>
 
-    <div class="flex items-center space-x-2">
-      <button
-        (click)="loadOpenOrders()"
-        class="text-gray-400 hover:text-white transition-colors"
-        title="Refresh"
+    <button
+      (click)="loadOpenOrders()"
+      class="text-gray-400 hover:text-white transition-colors p-1"
+      title="Refresh"
+    >
+      <svg
+        class="w-4 h-4"
+        [class.animate-spin]="isLoadingOrders"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
       >
-        <svg
-          class="w-4 h-4"
-          [class.animate-spin]="isLoadingOrders"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          ></path>
-        </svg>
-      </button>
-    </div>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        ></path>
+      </svg>
+    </button>
   </div>
 
   <!-- Content Area -->
-  <div class="space-y-2 max-h-96 overflow-y-auto">
-    <!-- Positions Tab Content -->
-    <div *ngIf="currentViewTab === 'positions'">
+  <div
+    class="space-y-2 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
+  >
+    <!-- Positions Tab -->
+    <div
+      *ngIf="currentViewTab === 'positions' && currentTradingMode === 'cross'"
+    >
+      <!-- Loading State -->
+      <div *ngIf="isLoading" class="text-center py-8 text-gray-400">
+        <svg
+          class="animate-spin w-8 h-8 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <p class="text-sm">Loading positions...</p>
+      </div>
+
       <!-- No Positions State -->
       <div
-        *ngIf="positions.length === 0"
+        *ngIf="!isLoading && positions.length === 0"
         class="text-center py-8 text-gray-400"
       >
         <svg
@@ -386,7 +533,7 @@
       <!-- Position Items -->
       <div
         *ngFor="let position of positions; trackBy: trackByPositionId"
-        class="bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
+        class="position-card bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
       >
         <!-- Position Header -->
         <div class="flex items-center justify-between mb-2">
@@ -428,7 +575,7 @@
             </div>
             <button
               (click)="closePosition(position.id)"
-              class="text-gray-400 hover:text-red-400 transition-colors"
+              class="text-gray-400 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-700"
               title="Close position"
             >
               <svg
@@ -448,30 +595,65 @@
           </div>
         </div>
 
-        <!-- Position Details -->
-        <div class="grid grid-cols-3 gap-2 text-xs text-gray-400">
+        <!-- Position Details Grid -->
+        <div class="grid grid-cols-3 gap-2 text-xs text-gray-400 mb-2">
           <div>
             <span class="block">Size</span>
             <span class="text-gray-300 font-medium">{{
-              position.size | number : "1.0-4"
+              formatSize(position.size)
             }}</span>
           </div>
           <div>
             <span class="block">Entry</span>
             <span class="text-gray-300 font-mono"
-              >${{ position.entryPrice | number : "1.2-4" }}</span
+              >${{ formatPrice(position.entryPrice) }}</span
             >
           </div>
           <div>
-            <span class="block">Current</span>
+            <span class="block">Mark</span>
             <span class="text-gray-300 font-mono"
-              >${{ position.currentPrice | number : "1.2-4" }}</span
+              >${{ formatPrice(position.currentPrice) }}</span
+            >
+          </div>
+          <div>
+            <span class="block">Margin</span>
+            <span class="text-gray-300 font-mono"
+              >${{ formatPrice(position.margin) }}</span
+            >
+          </div>
+          <div>
+            <span class="block">Liq. Price</span>
+            <span class="text-orange-400 font-mono"
+              >${{ formatPrice(position.liquidationPrice) }}</span
+            >
+          </div>
+          <div>
+            <span class="block">Status</span>
+            <span class="text-gray-300">{{ position.status }}</span>
+          </div>
+        </div>
+
+        <!-- Stop Loss / Take Profit -->
+        <div
+          *ngIf="position.stopLoss || position.takeProfit"
+          class="flex gap-2 text-xs border-t border-gray-700/50 pt-2"
+        >
+          <div *ngIf="position.stopLoss" class="flex items-center space-x-1">
+            <span class="text-red-400">SL:</span>
+            <span class="text-gray-300 font-mono"
+              >${{ formatPrice(position.stopLoss) }}</span
+            >
+          </div>
+          <div *ngIf="position.takeProfit" class="flex items-center space-x-1">
+            <span class="text-green-400">TP:</span>
+            <span class="text-gray-300 font-mono"
+              >${{ formatPrice(position.takeProfit) }}</span
             >
           </div>
         </div>
       </div>
 
-      <!-- Total P&L Summary for Positions -->
+      <!-- Total P&L Summary -->
       <div
         *ngIf="positions.length > 0"
         class="border-t border-gray-700/50 pt-3 mt-3"
@@ -490,7 +672,7 @@
       </div>
     </div>
 
-    <!-- Orders Tab Content -->
+    <!-- Orders Tab -->
     <div *ngIf="currentViewTab === 'orders'">
       <!-- Loading State -->
       <div *ngIf="isLoadingOrders" class="text-center py-8 text-gray-400">
@@ -541,7 +723,7 @@
       <!-- Order Items -->
       <div
         *ngFor="let order of openOrders; trackBy: trackByOrderId"
-        class="bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
+        class="order-card bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
       >
         <!-- Order Header -->
         <div class="flex items-center justify-between mb-2">
@@ -571,7 +753,7 @@
             </div>
             <button
               (click)="cancelOrder(order.id)"
-              class="text-gray-400 hover:text-red-400 transition-colors"
+              class="text-gray-400 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-700"
               title="Cancel order"
             >
               <svg
@@ -591,24 +773,24 @@
           </div>
         </div>
 
-        <!-- Order Details -->
+        <!-- Order Details Grid -->
         <div class="grid grid-cols-3 gap-2 text-xs text-gray-400 mb-2">
           <div>
             <span class="block">Price</span>
             <span class="text-gray-300 font-mono"
-              >${{ order.price | number : "1.2-4" }}</span
+              >${{ formatPrice(order.price) }}</span
             >
           </div>
           <div>
             <span class="block">Quantity</span>
             <span class="text-gray-300 font-medium">{{
-              order.quantity | number : "1.0-4"
+              formatSize(order.quantity)
             }}</span>
           </div>
           <div>
             <span class="block">Filled</span>
             <span class="text-gray-300 font-medium">{{
-              order.filledQuantity | number : "1.0-4"
+              formatSize(order.filledQuantity)
             }}</span>
           </div>
         </div>
@@ -628,6 +810,16 @@
             ></div>
           </div>
         </div>
+
+        <!-- Order Value -->
+        <div
+          class="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/50 text-xs"
+        >
+          <span class="text-gray-400">Total Value</span>
+          <span class="text-gray-300 font-mono"
+            >${{ formatPrice(order.price * order.quantity) }}</span
+          >
+        </div>
       </div>
     </div>
   </div>
@@ -646,7 +838,7 @@
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span>Spot</span>
+        <span>Spot Trading</span>
       </div>
     </button>
     <button
@@ -657,7 +849,7 @@
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
         </svg>
-        <span>Cross</span>
+        <span>Cross Trading</span>
       </div>
     </button>
   </div>
@@ -670,7 +862,7 @@
   (click)="closeTradingModal()"
 >
   <div
-    class="fixed bottom-0 left-0 right-0 bg-gray-800 rounded-t-xl p-4 max-h-[90vh] overflow-y-auto"
+    class="fixed bottom-0 left-0 right-0 bg-gray-800 rounded-t-xl p-4 max-h-[90vh] overflow-y-auto animate-slide-up"
     (click)="$event.stopPropagation()"
   >
     <!-- Modal Header -->
@@ -680,7 +872,7 @@
       </h3>
       <button
         (click)="closeTradingModal()"
-        class="text-gray-400 hover:text-white transition-colors"
+        class="text-gray-400 hover:text-white transition-colors p-1"
       >
         <svg
           class="w-6 h-6"
@@ -698,45 +890,52 @@
       </button>
     </div>
 
-    <!-- Mobile Trading Form Content (Similar to desktop form) -->
-    <div class="space-y-4">
-      <!-- Order Side Toggle -->
+    <!-- Mobile Form Content -->
+    <form
+      [formGroup]="tradingForm"
+      (ngSubmit)="executeTrade()"
+      class="space-y-4"
+    >
+      <!-- Mobile order side toggle -->
       <div class="flex bg-gray-700 rounded-lg p-1">
         <button
+          type="button"
           (click)="setOrderSide('buy')"
-          [class]="
-            currentOrderSide === 'buy'
-              ? 'bg-green-600 text-white'
-              : 'text-gray-300 hover:text-white'
-          "
-          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors"
+          [class.active]="currentOrderSide === 'buy'"
+          [class.bg-green-600]="currentOrderSide === 'buy'"
+          [class.text-white]="currentOrderSide === 'buy'"
+          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-gray-300 hover:text-white"
         >
           Buy
         </button>
         <button
+          type="button"
           (click)="setOrderSide('sell')"
-          [class]="
-            currentOrderSide === 'sell'
-              ? 'bg-red-600 text-white'
-              : 'text-gray-300 hover:text-white'
-          "
-          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors"
+          [class.active]="currentOrderSide === 'sell'"
+          [class.bg-red-600]="currentOrderSide === 'sell'"
+          [class.text-white]="currentOrderSide === 'sell'"
+          class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-gray-300 hover:text-white"
         >
           Sell
         </button>
       </div>
 
-      <!-- Form controls would be repeated here with mobile-optimized styles -->
+      <!-- Mobile form fields (similar structure to desktop but optimized for mobile) -->
+      <!-- The rest of the form fields would be repeated here with mobile-friendly sizes -->
 
-      <!-- Submit Button -->
+      <!-- Mobile Submit Button -->
       <button
-        (click)="executeTrade()"
+        type="submit"
         [disabled]="!isFormValid() || isSubmitting"
-        [class]="
-          currentOrderSide === 'buy'
-            ? 'bg-green-600 hover:bg-green-700 disabled:bg-gray-600'
-            : 'bg-red-600 hover:bg-red-700 disabled:bg-gray-600'
+        [class.bg-green-600]="currentOrderSide === 'buy'"
+        [class.hover:bg-green-700]="
+          currentOrderSide === 'buy' && isFormValid() && !isSubmitting
         "
+        [class.bg-red-600]="currentOrderSide === 'sell'"
+        [class.hover:bg-red-700]="
+          currentOrderSide === 'sell' && isFormValid() && !isSubmitting
+        "
+        [class.disabled:bg-gray-600]="!isFormValid() || isSubmitting"
         class="w-full text-white py-4 rounded-lg font-medium transition-colors text-base disabled:cursor-not-allowed"
       >
         <div class="flex items-center justify-center space-x-2">
@@ -771,6 +970,6 @@
           </span>
         </div>
       </button>
-    </div>
+    </form>
   </div>
 </div>

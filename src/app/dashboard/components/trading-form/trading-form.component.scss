@@ -1,0 +1,525 @@
+// Trading Form Component Styles
+
+// Variables
+$bg-primary: #1f2937;
+$bg-secondary: #374151;
+$bg-tertiary: #4b5563;
+$text-primary: #ffffff;
+$text-secondary: #9ca3af;
+$text-muted: #6b7280;
+$border-color: #4b5563;
+$border-hover: #6b7280;
+
+$color-green: #10b981;
+$color-green-dark: #059669;
+$color-red: #ef4444;
+$color-red-dark: #dc2626;
+$color-blue: #3b82f6;
+$color-blue-dark: #2563eb;
+$color-orange: #f97316;
+$color-orange-dark: #ea580c;
+
+$transition-fast: 150ms;
+$transition-normal: 200ms;
+$transition-slow: 300ms;
+
+// Mixins
+@mixin hover-effect {
+  transition: all $transition-normal ease-out;
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@mixin focus-effect {
+  &:focus {
+    outline: none;
+    border-color: $color-blue;
+    box-shadow: 0 0 0 3px rgba($color-blue, 0.1);
+  }
+}
+
+@mixin button-variant($bg, $bg-hover) {
+  background-color: $bg;
+  &:hover:not(:disabled) {
+    background-color: $bg-hover;
+  }
+  &.active {
+    background-color: $bg;
+    color: $text-primary;
+  }
+}
+
+// Component Styles
+.trading-form-container {
+  .form-group {
+    margin-bottom: 0.75rem;
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: $text-secondary;
+      margin-bottom: 0.25rem;
+      font-weight: 500;
+    }
+  }
+
+  .form-input {
+    width: 100%;
+    background-color: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    color: $text-primary;
+    font-size: 0.75rem;
+    transition: all $transition-fast ease-out;
+
+    @include focus-effect;
+
+    &:hover:not(:disabled) {
+      border-color: $border-hover;
+    }
+
+    &:disabled {
+      background-color: $bg-tertiary;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    &::placeholder {
+      color: $text-muted;
+    }
+
+    // Remove number input arrows
+    &[type="number"] {
+      -moz-appearance: textfield;
+      &::-webkit-outer-spin-button,
+      &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+    }
+  }
+
+  // Button Styles
+  button {
+    @include hover-effect;
+
+    &.active {
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  // Range Slider Styles
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 0.25rem;
+    background: $bg-secondary;
+    border-radius: 0.5rem;
+    outline: none;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      background: $color-blue;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all $transition-fast ease-out;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+      &:hover {
+        background: $color-blue-dark;
+        transform: scale(1.1);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+
+    &::-moz-range-thumb {
+      width: 1rem;
+      height: 1rem;
+      background: $color-blue;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      transition: all $transition-fast ease-out;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+      &:hover {
+        background: $color-blue-dark;
+        transform: scale(1.1);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+
+    &.leverage-slider {
+      &::-webkit-slider-thumb {
+        background: $color-orange;
+
+        &:hover {
+          background: $color-orange-dark;
+        }
+      }
+
+      &::-moz-range-thumb {
+        background: $color-orange;
+
+        &:hover {
+          background: $color-orange-dark;
+        }
+      }
+    }
+  }
+
+  // Order Summary Box
+  .order-summary {
+    background: $bg-secondary;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      margin-bottom: 0.25rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .label {
+        color: $text-secondary;
+      }
+
+      .value {
+        color: $text-primary;
+        font-weight: 500;
+        font-family: monospace;
+      }
+    }
+  }
+}
+
+// Position & Order Cards
+.position-card,
+.order-card {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: transparent;
+    transition: background $transition-fast ease-out;
+  }
+
+  &:hover {
+    &::before {
+      background: $color-blue;
+    }
+  }
+}
+
+// Mobile Modal
+.animate-slide-up {
+  animation: slideUp $transition-slow ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+// Scrollbar Styles
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: $bg-tertiary $bg-primary;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $bg-primary;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $bg-tertiary;
+    border-radius: 3px;
+
+    &:hover {
+      background: $border-hover;
+    }
+  }
+}
+
+// Loading Animation
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Responsive Styles
+@media (max-width: 1024px) {
+  .trading-form-container {
+    .form-input {
+      font-size: 0.875rem;
+      padding: 0.625rem;
+    }
+
+    button {
+      font-size: 0.875rem;
+      padding: 0.625rem 0.75rem;
+    }
+  }
+}
+
+// Utility Classes
+.text-green-400 {
+  color: $color-green;
+}
+.text-red-400 {
+  color: $color-red;
+}
+.text-blue-400 {
+  color: $color-blue;
+}
+.text-orange-400 {
+  color: $color-orange;
+}
+.text-gray-400 {
+  color: $text-secondary;
+}
+.text-gray-500 {
+  color: $text-muted;
+}
+
+.bg-green-600 {
+  background-color: $color-green;
+}
+.bg-red-600 {
+  background-color: $color-red;
+}
+.bg-blue-600 {
+  background-color: $color-blue;
+}
+.bg-orange-600 {
+  background-color: $color-orange;
+}
+.bg-gray-600 {
+  background-color: $bg-tertiary;
+}
+.bg-gray-700 {
+  background-color: $bg-secondary;
+}
+.bg-gray-800 {
+  background-color: $bg-primary;
+}
+
+.hover\:bg-green-700:hover {
+  background-color: $color-green-dark;
+}
+.hover\:bg-red-700:hover {
+  background-color: $color-red-dark;
+}
+.hover\:bg-blue-700:hover {
+  background-color: $color-blue-dark;
+}
+.hover\:bg-orange-700:hover {
+  background-color: $color-orange-dark;
+}
+
+.border-green-800\/50 {
+  border-color: rgba($color-green-dark, 0.5);
+}
+.border-red-800\/50 {
+  border-color: rgba($color-red-dark, 0.5);
+}
+.border-blue-800\/50 {
+  border-color: rgba($color-blue-dark, 0.5);
+}
+.border-orange-800\/50 {
+  border-color: rgba($color-orange-dark, 0.5);
+}
+
+.bg-green-950\/50 {
+  background-color: rgba(darken($color-green-dark, 20%), 0.5);
+}
+.bg-red-950\/50 {
+  background-color: rgba(darken($color-red-dark, 20%), 0.5);
+}
+.bg-blue-950\/50 {
+  background-color: rgba(darken($color-blue-dark, 20%), 0.5);
+}
+.bg-orange-950\/50 {
+  background-color: rgba(darken($color-orange-dark, 20%), 0.5);
+}
+
+// Animation Classes
+.transition-colors {
+  transition: color $transition-fast ease-out,
+    background-color $transition-fast ease-out;
+}
+
+.transition-all {
+  transition: all $transition-normal ease-out;
+}
+
+.duration-200 {
+  transition-duration: $transition-normal;
+}
+
+.duration-300 {
+  transition-duration: $transition-slow;
+}
+
+// Focus States
+.focus\:border-blue-500:focus {
+  border-color: $color-blue;
+}
+
+.focus\:outline-none:focus {
+  outline: none;
+}
+
+// Disabled States
+.disabled\:bg-gray-600:disabled {
+  background-color: $bg-tertiary;
+}
+
+.disabled\:cursor-not-allowed:disabled {
+  cursor: not-allowed;
+}
+
+// Custom Animations
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+// Progress Bar
+.progress-bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background-color: $bg-secondary;
+  border-radius: 3px;
+  overflow: hidden;
+
+  .progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: $color-blue;
+    transition: width $transition-slow ease-out;
+    border-radius: 3px;
+  }
+}
+
+// Status Badges
+.status-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-style: solid;
+
+  &.pending,
+  &.open {
+    color: #fbbf24;
+    background-color: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  &.partiallyfilled {
+    color: $color-blue;
+    background-color: rgba($color-blue, 0.1);
+    border-color: rgba($color-blue, 0.3);
+  }
+
+  &.filled {
+    color: $color-green;
+    background-color: rgba($color-green, 0.1);
+    border-color: rgba($color-green, 0.3);
+  }
+
+  &.cancelled,
+  &.rejected {
+    color: $color-red;
+    background-color: rgba($color-red, 0.1);
+    border-color: rgba($color-red, 0.3);
+  }
+}
+
+// Mobile Specific Styles
+@media (max-width: 640px) {
+  .trading-form-container {
+    padding: 1rem;
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-input {
+      font-size: 1rem;
+      padding: 0.75rem;
+    }
+
+    button {
+      font-size: 1rem;
+      padding: 0.75rem 1rem;
+    }
+  }
+}
