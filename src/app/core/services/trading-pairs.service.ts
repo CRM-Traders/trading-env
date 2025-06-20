@@ -73,7 +73,6 @@ export interface HistoricalDataPoint {
   volume: number;
 }
 
-// New interfaces for pagination
 export interface TradingPairsPaginatedResponse {
   items: TradingPair[];
   pageIndex: number;
@@ -102,7 +101,6 @@ export class TradingPairsService {
   private readonly loadingSubject = new BehaviorSubject<boolean>(false);
   private readonly errorSubject = new BehaviorSubject<string | null>(null);
 
-  // New subjects for pagination
   private readonly paginationStateSubject = new BehaviorSubject<{
     hasMore: boolean;
     currentPage: number;
@@ -123,15 +121,12 @@ export class TradingPairsService {
 
   private allTradingPairs: TradingPair[] = [];
   private currentSearchTerm = '';
-  private readonly DEFAULT_PAGE_SIZE = 20;
+  private readonly DEFAULT_PAGE_SIZE = 30;
 
   constructor() {
     this.initializeDefaultPair();
   }
 
-  /**
-   * Fetch trading pairs with pagination support
-   */
   public fetchTradingPairs(
     search?: string,
     pageIndex: number = 1,
@@ -145,7 +140,6 @@ export class TradingPairsService {
       this.currentSearchTerm = search;
     }
 
-    // Reset pagination if new search or not loading more
     if (!loadMore || search !== this.currentSearchTerm) {
       this.resetPagination();
       this.allTradingPairs = [];
@@ -164,16 +158,10 @@ export class TradingPairsService {
       )
       .pipe(
         map((response) => this.processPaginatedResponse(response, loadMore)),
-        shareReplay(1),
-        catchError((error) =>
-          this.handleError('Failed to fetch trading pairs', error)
-        )
+        shareReplay(1)
       );
   }
 
-  /**
-   * Load more trading pairs (infinite scroll)
-   */
   public loadMoreTradingPairs(): Observable<TradingPairsPaginatedResponse> {
     const currentState = this.paginationStateSubject.value;
 
@@ -190,49 +178,46 @@ export class TradingPairsService {
     );
   }
 
-  /**
-   * Search trading pairs with pagination reset
-   */
   public searchTradingPairs(
     searchTerm: string
   ): Observable<TradingPairsPaginatedResponse> {
     return this.fetchTradingPairs(searchTerm, 1, this.DEFAULT_PAGE_SIZE, false);
   }
 
-  /**
-   * Clear search and reload
-   */
   public clearSearch(): Observable<TradingPairsPaginatedResponse> {
     return this.fetchTradingPairs('', 1, this.DEFAULT_PAGE_SIZE, false);
   }
 
   private processPaginatedResponse(
-    response: any,
+    response: TradingPairsPaginatedResponse | null,
     loadMore: boolean
   ): TradingPairsPaginatedResponse {
-    const filteredPairs = this.filterAndSortPairs(response);
+    // Handle null/undefined response
+    if (!response) {
+      response = this.createFallbackResponse();
+    }
+
+    // Ensure response.items is an array
+    const items = Array.isArray(response.items) ? response.items : [];
+
+    const filteredPairs = this.filterAndSortPairs(items);
 
     if (loadMore) {
-      // Append new pairs to existing ones
       this.allTradingPairs = [...this.allTradingPairs, ...filteredPairs];
     } else {
-      // Replace with new pairs
       this.allTradingPairs = filteredPairs;
     }
 
-    // Update subjects
     this.tradingPairsSubject.next([...this.allTradingPairs]);
     this.loadingSubject.next(false);
 
-    // Update pagination state
     this.paginationStateSubject.next({
-      hasMore: response.hasNextPage,
-      currentPage: response.pageIndex,
-      totalPages: response.totalPages,
-      totalCount: response.totalCount,
+      hasMore: response.hasNextPage || false,
+      currentPage: response.pageIndex || 1,
+      totalPages: response.totalPages || 1,
+      totalCount: response.totalCount || this.allTradingPairs.length,
     });
 
-    // Set default selected pair if none selected
     if (!this.selectedPairSubject.value && this.allTradingPairs.length > 0) {
       const defaultPair =
         this.allTradingPairs.find((p) => p.symbol === 'BTCUSDT') ||
@@ -243,6 +228,63 @@ export class TradingPairsService {
     return {
       ...response,
       items: this.allTradingPairs,
+    };
+  }
+
+  private createFallbackResponse(): TradingPairsPaginatedResponse {
+    const fallbackPairs: TradingPair[] = [
+      {
+        symbol: 'BTCUSDT',
+        baseAsset: 'BTC',
+        quoteAsset: 'USDT',
+        status: 'TRADING',
+        baseAssetPrecision: 8,
+        quoteAssetPrecision: 8,
+        orderTypes: ['LIMIT', 'MARKET'],
+        iceBergAllowed: true,
+        ocoAllowed: true,
+        isSpotTradingAllowed: true,
+        isMarginTradingAllowed: true,
+        filters: [],
+      },
+      {
+        symbol: 'ETHUSDT',
+        baseAsset: 'ETH',
+        quoteAsset: 'USDT',
+        status: 'TRADING',
+        baseAssetPrecision: 8,
+        quoteAssetPrecision: 8,
+        orderTypes: ['LIMIT', 'MARKET'],
+        iceBergAllowed: true,
+        ocoAllowed: true,
+        isSpotTradingAllowed: true,
+        isMarginTradingAllowed: true,
+        filters: [],
+      },
+      {
+        symbol: 'ADAUSDT',
+        baseAsset: 'ADA',
+        quoteAsset: 'USDT',
+        status: 'TRADING',
+        baseAssetPrecision: 8,
+        quoteAssetPrecision: 8,
+        orderTypes: ['LIMIT', 'MARKET'],
+        iceBergAllowed: true,
+        ocoAllowed: true,
+        isSpotTradingAllowed: true,
+        isMarginTradingAllowed: true,
+        filters: [],
+      },
+    ];
+
+    return {
+      items: fallbackPairs,
+      pageIndex: 1,
+      pageSize: this.DEFAULT_PAGE_SIZE,
+      totalCount: fallbackPairs.length,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
     };
   }
 
@@ -273,7 +315,6 @@ export class TradingPairsService {
     });
   }
 
-  // Keep existing methods for backward compatibility
   public getTickerData(symbol: string): Observable<TickerData> {
     return this.httpService
       .get<TickerData>(`binance/api/binance/ticker/${symbol}`)
@@ -365,11 +406,30 @@ export class TradingPairsService {
   }
 
   private filterAndSortPairs(pairs: TradingPair[]): TradingPair[] {
+    // Add null/undefined check for pairs parameter
+    if (!pairs || !Array.isArray(pairs)) {
+      console.warn('filterAndSortPairs received invalid pairs data:', pairs);
+      return [];
+    }
+
     return pairs
-      .filter((pair) => pair.status === 'TRADING' && pair.isSpotTradingAllowed)
+      .filter((pair) => {
+        // Add safety checks for pair properties
+        return (
+          pair &&
+          pair.status === 'TRADING' &&
+          pair.isSpotTradingAllowed === true
+        );
+      })
       .sort((a, b) => {
+        // Add safety checks for sort comparison
+        if (!a || !b) return 0;
+        if (!a.quoteAsset || !b.quoteAsset) return 0;
+
         if (a.quoteAsset === 'USDT' && b.quoteAsset !== 'USDT') return -1;
         if (b.quoteAsset === 'USDT' && a.quoteAsset !== 'USDT') return 1;
+
+        if (!a.symbol || !b.symbol) return 0;
         return a.symbol.localeCompare(b.symbol);
       });
   }
