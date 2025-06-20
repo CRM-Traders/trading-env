@@ -47,6 +47,10 @@ export class WalletService {
       );
   }
 
+  getPortfolio() {
+    return this.http.get(`${this.baseUrl}/portfolio`);
+  }
+
   /**
    * Get balance for a specific currency
    */

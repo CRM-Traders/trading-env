@@ -6,9 +6,40 @@ import {
   inject,
   Input,
   Output,
+  OnInit,
+  OnDestroy,
 } from '@angular/core';
 import { AuthService } from '../../../core/services/auth.service';
+import { WalletService } from '../../../core/services/wallet.service';
+import { TradingAccountService } from '../../../core/services/trading-account.service';
 import { environment } from '../../../../environments/environment';
+import { Subject, takeUntil, interval } from 'rxjs';
+
+export interface WalletBalance {
+  id: string;
+  currency: string;
+  availableBalance: number;
+  lockedBalance: number;
+  totalBalance: number;
+  usdEquivalent: number;
+  lastPriceUpdate: string;
+}
+
+export interface PortfolioHolding {
+  currency: string;
+  balance: number;
+  usdPrice: number;
+  usdValue: number;
+  percentage: number;
+  change24h: number;
+}
+
+export interface Portfolio {
+  tradingAccountId: string;
+  totalUsdValue: number;
+  holdings: PortfolioHolding[];
+  timestamp: string;
+}
 
 @Component({
   selector: 'app-header',
@@ -16,8 +47,10 @@ import { environment } from '../../../../environments/environment';
   templateUrl: './header.component.html',
   styleUrl: './header.component.scss',
 })
-export class HeaderComponent {
+export class HeaderComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
+  walletService = inject(WalletService);
+  tradingAccountService = inject(TradingAccountService);
 
   title = 'Dashboard';
   @Input() isUserDropdownOpen = false;
@@ -26,8 +59,40 @@ export class HeaderComponent {
   userInitials =
     this.userName[0].toUpperCase() + this.userName[1].toUpperCase();
 
+  portfolio: Portfolio | null = null;
+  isLoadingPortfolio = true;
+  private destroy$ = new Subject<void>();
+
   @Output() toggleSidebar = new EventEmitter<void>();
   @Output() toggleUserDropdown = new EventEmitter<void>();
+
+  ngOnInit(): void {
+    this.loadPortfolio();
+    // Refresh portfolio every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.loadPortfolio());
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadPortfolio(): void {
+    this.walletService
+      .getPortfolio()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (portfolio: any) => {
+          this.portfolio = portfolio;
+          this.isLoadingPortfolio = false;
+        },
+        error: () => {
+          this.isLoadingPortfolio = false;
+        },
+      });
+  }
 
   onToggleSidebar(): void {
     this.toggleSidebar.emit();
