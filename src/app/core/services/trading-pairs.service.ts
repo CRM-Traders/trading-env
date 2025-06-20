@@ -207,10 +207,10 @@ export class TradingPairsService {
   }
 
   private processPaginatedResponse(
-    response: TradingPairsPaginatedResponse,
+    response: any,
     loadMore: boolean
   ): TradingPairsPaginatedResponse {
-    const filteredPairs = this.filterAndSortPairs(response.items);
+    const filteredPairs = this.filterAndSortPairs(response);
 
     if (loadMore) {
       // Append new pairs to existing ones
