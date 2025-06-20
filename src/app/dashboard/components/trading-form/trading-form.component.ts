@@ -255,7 +255,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
 
     const loadingPromises = [
       this.loadAvailableBalance(),
-      this.loadPositions(),
+      // this.loadPositions(),
       this.loadOpenOrders(),
       this.loadMarketData(),
     ];
@@ -309,19 +309,19 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   /**
    * Load current positions
    */
-  async loadPositions(): Promise<void> {
-    if (!this.currentTradingAccount) return;
+  // async loadPositions(): Promise<void> {
+  //   if (!this.currentTradingAccount) return;
 
-    try {
-      const positions = await this.positionService
-        .getPositions(this.currentTradingAccount.id)
-        .toPromise();
-      this.positions = positions || [];
-      this.calculateTotalPnL();
-    } catch (error) {
-      this.notificationService.showWarning('Failed to load open positions');
-    }
-  }
+  //   try {
+  //     const positions = await this.positionService
+  //       .getPositions(this.currentTradingAccount.id)
+  //       .toPromise();
+  //     this.positions = positions || [];
+  //     this.calculateTotalPnL();
+  //   } catch (error) {
+  //     this.notificationService.showWarning('Failed to load open positions');
+  //   }
+  // }
 
   /**
    * Load open orders (NEW METHOD)
@@ -621,7 +621,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       this.notificationService.showSuccess('Position closed successfully');
 
       // Refresh positions after closing
-      await this.loadPositions();
+      // await this.loadPositions();
       await this.loadAvailableBalance();
     } catch (error: any) {
       console.error('Failed to close position:', error);
