@@ -367,7 +367,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
    * Switch between positions and orders view (NEW METHOD)
    */
   switchViewTab(tab: 'positions' | 'orders'): void {
-    this.currentViewTab = tab;
+    this.currentViewTab = 'orders'; //tab;
     if (tab === 'orders') {
       this.loadOpenOrders();
     }
