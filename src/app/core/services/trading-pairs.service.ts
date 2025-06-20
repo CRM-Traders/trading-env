@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, BehaviorSubject, throwError } from 'rxjs';
-import { catchError, map, shareReplay, finalize } from 'rxjs/operators';
+import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
+import { catchError, map, shareReplay, finalize, tap } from 'rxjs/operators';
 import { HttpService } from './http.service';
+import { HttpParams } from '@angular/common/http';
 
 export interface TradingPair {
   symbol: string;
@@ -73,20 +74,13 @@ export interface HistoricalDataPoint {
   volume: number;
 }
 
-export interface TradingPairsPaginatedResponse {
-  items: TradingPair[];
-  pageIndex: number;
+interface PaginationState {
+  currentPage: number;
   pageSize: number;
-  totalCount: number;
-  totalPages: number;
-  hasPreviousPage: boolean;
-  hasNextPage: boolean;
-}
-
-export interface TradingPairsRequest {
-  search?: string;
-  pageIndex?: number;
-  pageSize?: number;
+  totalLoaded: number;
+  hasMore: boolean;
+  isLoading: boolean;
+  isLoadingMore: boolean;
 }
 
 @Injectable({
@@ -94,220 +88,348 @@ export interface TradingPairsRequest {
 })
 export class TradingPairsService {
   private readonly httpService = inject(HttpService);
+  private readonly DEFAULT_PAGE_SIZE = 30;
 
+  // State management
+  private readonly allTradingPairs: TradingPair[] = [];
   private readonly tradingPairsSubject = new BehaviorSubject<TradingPair[]>([]);
   private readonly selectedPairSubject =
     new BehaviorSubject<TradingPair | null>(null);
-  private readonly loadingSubject = new BehaviorSubject<boolean>(false);
   private readonly errorSubject = new BehaviorSubject<string | null>(null);
 
-  private readonly paginationStateSubject = new BehaviorSubject<{
-    hasMore: boolean;
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-  }>({
-    hasMore: true,
+  private readonly paginationState: PaginationState = {
     currentPage: 0,
-    totalPages: 0,
-    totalCount: 0,
-  });
+    pageSize: this.DEFAULT_PAGE_SIZE,
+    totalLoaded: 0,
+    hasMore: true,
+    isLoading: false,
+    isLoadingMore: false,
+  };
 
+  private readonly paginationStateSubject =
+    new BehaviorSubject<PaginationState>({
+      ...this.paginationState,
+    });
+
+  // Public observables
   public readonly tradingPairs$ = this.tradingPairsSubject.asObservable();
   public readonly selectedPair$ = this.selectedPairSubject.asObservable();
-  public readonly loading$ = this.loadingSubject.asObservable();
   public readonly error$ = this.errorSubject.asObservable();
-  public readonly paginationState$ = this.paginationStateSubject.asObservable();
+  public readonly loading$ = this.paginationStateSubject.pipe(
+    map((state) => state.isLoading)
+  );
+  public readonly paginationState$ = this.paginationStateSubject.pipe(
+    map((state) => ({
+      hasMore: state.hasMore,
+      currentPage: state.currentPage,
+      totalPages: Math.ceil(state.totalLoaded / state.pageSize),
+      totalCount: state.totalLoaded,
+    }))
+  );
 
-  private allTradingPairs: TradingPair[] = [];
+  // Current search term
   private currentSearchTerm = '';
-  private readonly DEFAULT_PAGE_SIZE = 30;
-  private isLoadingMore = false;
 
   constructor() {
     this.initializeDefaultPair();
   }
 
-  public fetchTradingPairs(
-    search?: string,
-    pageIndex: number = 1,
-    pageSize: number = this.DEFAULT_PAGE_SIZE,
-    loadMore: boolean = false
-  ): Observable<TradingPairsPaginatedResponse> {
-    // Prevent multiple simultaneous requests
-    if (this.loadingSubject.value && !loadMore) {
-      return throwError(() => new Error('Request already in progress'));
+  /**
+   * Initialize the service with default trading pairs
+   */
+  public initializeTradingPairs(): Observable<TradingPair[]> {
+    if (this.allTradingPairs.length > 0) {
+      return of(this.allTradingPairs);
     }
 
-    if (this.isLoadingMore && loadMore) {
-      return throwError(() => new Error('Load more already in progress'));
+    return this.loadTradingPairsPage(1, true);
+  }
+
+  /**
+   * Load more trading pairs for infinite scroll
+   */
+  public loadMoreTradingPairs(): Observable<TradingPair[]> {
+    if (
+      this.paginationState.isLoadingMore ||
+      this.paginationState.isLoading ||
+      !this.paginationState.hasMore
+    ) {
+      return of([]);
     }
 
-    // Set loading states
-    if (loadMore) {
-      this.isLoadingMore = true;
-    } else {
-      this.loadingSubject.next(true);
-      this.errorSubject.next(null);
+    const nextPage = this.paginationState.currentPage + 1;
+    return this.loadTradingPairsPage(nextPage, false);
+  }
+
+  /**
+   * Search trading pairs - this filters locally for better performance
+   */
+  public searchTradingPairs(searchTerm: string): Observable<TradingPair[]> {
+    this.currentSearchTerm = searchTerm.toLowerCase().trim();
+
+    if (!this.currentSearchTerm) {
+      this.tradingPairsSubject.next([...this.allTradingPairs]);
+      return of(this.allTradingPairs);
     }
 
-    // Handle search term changes
-    const searchChanged =
-      search !== undefined && search !== this.currentSearchTerm;
-    if (search !== undefined) {
-      this.currentSearchTerm = search;
-    }
+    const filteredPairs = this.allTradingPairs.filter(
+      (pair) =>
+        pair.symbol.toLowerCase().includes(this.currentSearchTerm) ||
+        pair.baseAsset.toLowerCase().includes(this.currentSearchTerm) ||
+        pair.quoteAsset.toLowerCase().includes(this.currentSearchTerm)
+    );
 
-    // Reset data if not loading more or search changed
-    if (!loadMore || searchChanged) {
-      this.resetPagination();
-      this.allTradingPairs = [];
-    }
+    this.tradingPairsSubject.next(filteredPairs);
+    return of(filteredPairs);
+  }
 
-    const params: TradingPairsRequest = {
-      pageIndex: pageIndex,
-      pageSize: pageSize,
-      search: this.currentSearchTerm || undefined,
-    };
+  /**
+   * Clear search and return all pairs
+   */
+  public clearSearch(): Observable<TradingPair[]> {
+    this.currentSearchTerm = '';
+    this.tradingPairsSubject.next([...this.allTradingPairs]);
+    return of(this.allTradingPairs);
+  }
 
-    return this.httpService
-      .get<any>(
-        'binance/api/binance/trading-pairs',
-        this.buildHttpParams(params)
+  /**
+   * Refresh all trading pairs
+   */
+  public refreshTradingPairs(): Observable<TradingPair[]> {
+    this.resetState();
+    return this.loadTradingPairsPage(1, true);
+  }
+
+  /**
+   * Check if more data can be loaded
+   */
+  public canLoadMore(): boolean {
+    return (
+      this.paginationState.hasMore &&
+      !this.paginationState.isLoading &&
+      !this.paginationState.isLoadingMore &&
+      !this.currentSearchTerm
+    ); // Don't load more when searching
+  }
+
+  /**
+   * Check if currently loading more data
+   */
+  public isCurrentlyLoadingMore(): boolean {
+    return this.paginationState.isLoadingMore;
+  }
+
+  /**
+   * Get current search term
+   */
+  public getCurrentSearchTerm(): string {
+    return this.currentSearchTerm;
+  }
+
+  /**
+   * Set selected trading pair
+   */
+  public setSelectedPair(pair: TradingPair): void {
+    this.selectedPairSubject.next(pair);
+  }
+
+  /**
+   * Get selected trading pair
+   */
+  public getSelectedPair(): TradingPair | null {
+    return this.selectedPairSubject.value;
+  }
+
+  /**
+   * Get all loaded trading pairs
+   */
+  public getAllTradingPairs(): TradingPair[] {
+    return [...this.allTradingPairs];
+  }
+
+  /**
+   * Get popular trading pairs (USDT pairs)
+   */
+  public getPopularPairs(): TradingPair[] {
+    return this.allTradingPairs
+      .filter(
+        (pair) =>
+          pair.quoteAsset === 'USDT' &&
+          pair.status === 'TRADING' &&
+          pair.isSpotTradingAllowed
       )
+      .slice(0, 10);
+  }
+
+  /**
+   * Get ticker data for a specific symbol
+   */
+  public getTickerData(symbol: string): Observable<TickerData> {
+    return this.httpService
+      .get<TickerData>(`binance/api/binance/ticker/${symbol}`)
       .pipe(
-        map((response) =>
-          this.processPaginatedResponse(response, loadMore, pageIndex, pageSize)
-        ),
-        shareReplay(1),
-        finalize(() => {
-          if (loadMore) {
-            this.isLoadingMore = false;
-          } else {
-            this.loadingSubject.next(false);
-          }
-        }),
         catchError((error) => {
-          console.error('Error fetching trading pairs:', error);
-          this.handleError('Failed to fetch trading pairs', error);
-
-          if (loadMore) {
-            this.isLoadingMore = false;
-          } else {
-            this.loadingSubject.next(false);
-          }
-
-          return throwError(() => error);
+          console.error(`Failed to fetch ticker data for ${symbol}:`, error);
+          return throwError(
+            () => new Error(`Failed to fetch ticker data for ${symbol}`)
+          );
         })
       );
   }
 
-  public loadMoreTradingPairs(): Observable<TradingPairsPaginatedResponse> {
-    const currentState = this.paginationStateSubject.value;
+  /**
+   * Get all tickers
+   */
+  public getAllTickers(): Observable<TickerData[]> {
+    return this.httpService
+      .get<TickerData[]>('binance/api/binance/tickers')
+      .pipe(
+        catchError((error) => {
+          console.error('Failed to fetch all tickers:', error);
+          return throwError(() => new Error('Failed to fetch all tickers'));
+        })
+      );
+  }
 
-    if (
-      !currentState.hasMore ||
-      this.isLoadingMore ||
-      this.loadingSubject.value
-    ) {
-      return throwError(() => new Error('Cannot load more at this time'));
+  /**
+   * Get order book data
+   */
+  public getOrderBook(
+    symbol: string,
+    limit: number = 100
+  ): Observable<OrderBookData> {
+    return this.httpService
+      .get<OrderBookData>(
+        `binance/api/binance/orderbook/${symbol}?limit=${limit}`
+      )
+      .pipe(
+        catchError((error) => {
+          console.error(`Failed to fetch order book for ${symbol}:`, error);
+          return throwError(
+            () => new Error(`Failed to fetch order book for ${symbol}`)
+          );
+        })
+      );
+  }
+
+  /**
+   * Get historical data
+   */
+  public getHistoricalData(
+    symbol: string,
+    interval: string = '1h',
+    limit: number = 500
+  ): Observable<HistoricalDataPoint[]> {
+    return this.httpService
+      .get<HistoricalDataPoint[]>(
+        `binance/api/binance/historical-data/${symbol}?interval=${interval}&limit=${limit}`
+      )
+      .pipe(
+        catchError((error) => {
+          console.error(
+            `Failed to fetch historical data for ${symbol}:`,
+            error
+          );
+          return throwError(
+            () => new Error(`Failed to fetch historical data for ${symbol}`)
+          );
+        })
+      );
+  }
+
+  /**
+   * Private method to load a specific page of trading pairs
+   */
+  private loadTradingPairsPage(
+    page: number,
+    isInitial: boolean
+  ): Observable<TradingPair[]> {
+    const isLoadingMore = !isInitial && page > 1;
+
+    // Update loading state
+    if (isLoadingMore) {
+      this.paginationState.isLoadingMore = true;
+    } else {
+      this.paginationState.isLoading = true;
     }
 
-    const nextPage = currentState.currentPage + 1;
-    return this.fetchTradingPairs(
-      this.currentSearchTerm,
-      nextPage,
-      this.DEFAULT_PAGE_SIZE,
-      true
-    );
+    this.updatePaginationState();
+    this.errorSubject.next(null);
+
+    return this.httpService
+      .get<any>(
+        `binance/api/binance/trading-pairs?pageIndex=${page}&pageSize=${this.paginationState.pageSize}`
+      )
+      .pipe(
+        tap(() =>
+          console.log(`Loading page ${page}, isLoadingMore: ${isLoadingMore}`)
+        ),
+        map((response) =>
+          this.processApiResponse(response, page, isLoadingMore)
+        ),
+        tap((pairs) =>
+          console.log(`Loaded ${pairs.length} pairs for page ${page}`)
+        ),
+        shareReplay(1),
+        finalize(() => {
+          this.paginationState.isLoading = false;
+          this.paginationState.isLoadingMore = false;
+          this.updatePaginationState();
+        }),
+        catchError((error) => {
+          console.error(`Error loading trading pairs page ${page}:`, error);
+          this.handleApiError(error);
+          return of([]);
+        })
+      );
   }
 
-  public searchTradingPairs(
-    searchTerm: string
-  ): Observable<TradingPairsPaginatedResponse> {
-    // Reset loading more state when starting new search
-    this.isLoadingMore = false;
-    return this.fetchTradingPairs(searchTerm, 1, this.DEFAULT_PAGE_SIZE, false);
-  }
-
-  public clearSearch(): Observable<TradingPairsPaginatedResponse> {
-    // Reset loading more state when clearing search
-    this.isLoadingMore = false;
-    return this.fetchTradingPairs('', 1, this.DEFAULT_PAGE_SIZE, false);
-  }
-
-  private processPaginatedResponse(
+  /**
+   * Process API response and update internal state
+   */
+  private processApiResponse(
     response: any,
-    loadMore: boolean,
-    requestedPage: number,
-    requestedPageSize: number
-  ): TradingPairsPaginatedResponse {
-    let processedResponse: TradingPairsPaginatedResponse;
+    page: number,
+    isLoadingMore: boolean
+  ): TradingPair[] {
+    let pairs: TradingPair[] = [];
+    let hasMoreData = false;
 
     // Handle different response formats
     if (Array.isArray(response)) {
-      // Response is directly an array of trading pairs
-      const items = response as TradingPair[];
-      const filteredPairs = this.filterAndSortPairs(items);
-
-      processedResponse = {
-        items: filteredPairs,
-        pageIndex: requestedPage,
-        pageSize: requestedPageSize,
-        totalCount: filteredPairs.length,
-        totalPages: Math.ceil(filteredPairs.length / requestedPageSize),
-        hasPreviousPage: requestedPage > 1,
-        hasNextPage: false, // Since we got all items at once
-      };
-    } else if (response && typeof response === 'object' && response.items) {
-      // Response is a paginated wrapper
-      const filteredPairs = this.filterAndSortPairs(response.items || []);
-
-      processedResponse = {
-        items: filteredPairs,
-        pageIndex: response.pageIndex || requestedPage,
-        pageSize: response.pageSize || requestedPageSize,
-        totalCount: response.totalCount || filteredPairs.length,
-        totalPages:
-          response.totalPages ||
-          Math.ceil(
-            (response.totalCount || filteredPairs.length) /
-              (response.pageSize || requestedPageSize)
-          ),
-        hasPreviousPage: response.hasPreviousPage || false,
-        hasNextPage: response.hasNextPage || false,
-      };
+      // Direct array response
+      pairs = this.filterAndSortPairs(response);
+      hasMoreData = pairs.length === this.paginationState.pageSize;
+    } else if (response && response.items && Array.isArray(response.items)) {
+      // Paginated response
+      pairs = this.filterAndSortPairs(response.items);
+      hasMoreData = response.hasNextPage || false;
     } else {
-      // Fallback to default response
-      console.warn('Unexpected response format, using fallback');
-      processedResponse = this.createFallbackResponse();
+      // Fallback to default pairs
+      console.warn('Unexpected API response format, using fallback data');
+      pairs = this.createFallbackPairs();
+      hasMoreData = false;
     }
 
     // Update internal state
-    if (loadMore && processedResponse.items.length > 0) {
-      // Append new items
-      this.allTradingPairs = [
-        ...this.allTradingPairs,
-        ...processedResponse.items,
-      ];
+    if (isLoadingMore) {
+      // Append new pairs
+      this.allTradingPairs.push(...pairs);
+      this.paginationState.currentPage = page;
+      this.paginationState.totalLoaded = this.allTradingPairs.length;
+      this.paginationState.hasMore = hasMoreData;
     } else {
-      // Replace all items
-      this.allTradingPairs = [...processedResponse.items];
+      // Replace all pairs (initial load or refresh)
+      this.allTradingPairs.length = 0;
+      this.allTradingPairs.push(...pairs);
+      this.paginationState.currentPage = page;
+      this.paginationState.totalLoaded = pairs.length;
+      this.paginationState.hasMore = hasMoreData;
     }
 
     // Update subjects
     this.tradingPairsSubject.next([...this.allTradingPairs]);
-
-    // Update pagination state
-    this.paginationStateSubject.next({
-      hasMore:
-        processedResponse.hasNextPage && processedResponse.items.length > 0,
-      currentPage: processedResponse.pageIndex,
-      totalPages: processedResponse.totalPages,
-      totalCount: loadMore
-        ? this.allTradingPairs.length
-        : processedResponse.totalCount,
-    });
+    this.updatePaginationState();
 
     // Set default selected pair if none selected
     if (!this.selectedPairSubject.value && this.allTradingPairs.length > 0) {
@@ -317,15 +439,55 @@ export class TradingPairsService {
       this.setSelectedPair(defaultPair);
     }
 
-    // Return the updated response with all items
-    return {
-      ...processedResponse,
-      items: [...this.allTradingPairs],
-    };
+    return pairs;
   }
 
-  private createFallbackResponse(): TradingPairsPaginatedResponse {
-    const fallbackPairs: TradingPair[] = [
+  /**
+   * Filter and sort trading pairs
+   */
+  private filterAndSortPairs(pairs: any[]): TradingPair[] {
+    if (!pairs || !Array.isArray(pairs)) {
+      console.warn('Invalid pairs data received:', pairs);
+      return [];
+    }
+
+    return pairs
+      .filter(
+        (pair) =>
+          pair &&
+          pair.symbol &&
+          pair.status === 'TRADING' &&
+          pair.isSpotTradingAllowed === true
+      )
+      .map((pair) => ({
+        symbol: pair.symbol,
+        baseAsset: pair.baseAsset,
+        quoteAsset: pair.quoteAsset,
+        status: pair.status,
+        baseAssetPrecision: pair.baseAssetPrecision || 8,
+        quoteAssetPrecision: pair.quoteAssetPrecision || 8,
+        orderTypes: pair.orderTypes || ['LIMIT', 'MARKET'],
+        iceBergAllowed: pair.iceBergAllowed || false,
+        ocoAllowed: pair.ocoAllowed || false,
+        isSpotTradingAllowed: pair.isSpotTradingAllowed || false,
+        isMarginTradingAllowed: pair.isMarginTradingAllowed || false,
+        filters: pair.filters || [],
+      }))
+      .sort((a, b) => {
+        // Prioritize USDT pairs
+        if (a.quoteAsset === 'USDT' && b.quoteAsset !== 'USDT') return -1;
+        if (b.quoteAsset === 'USDT' && a.quoteAsset !== 'USDT') return 1;
+
+        // Then sort alphabetically
+        return a.symbol.localeCompare(b.symbol);
+      });
+  }
+
+  /**
+   * Create fallback pairs for when API fails
+   */
+  private createFallbackPairs(): TradingPair[] {
+    return [
       {
         symbol: 'BTCUSDT',
         baseAsset: 'BTC',
@@ -369,195 +531,44 @@ export class TradingPairsService {
         filters: [],
       },
     ];
-
-    return {
-      items: fallbackPairs,
-      pageIndex: 1,
-      pageSize: this.DEFAULT_PAGE_SIZE,
-      totalCount: fallbackPairs.length,
-      totalPages: 1,
-      hasPreviousPage: false,
-      hasNextPage: false,
-    };
   }
 
-  private buildHttpParams(params: TradingPairsRequest): any {
-    const httpParams: any = {};
-
-    if (params.pageIndex !== undefined) {
-      httpParams.pageIndex = params.pageIndex.toString();
-    }
-
-    if (params.pageSize !== undefined) {
-      httpParams.pageSize = params.pageSize.toString();
-    }
-
-    if (params.search && params.search.trim()) {
-      httpParams.search = params.search.trim();
-    }
-
-    return httpParams;
-  }
-
-  private resetPagination(): void {
-    this.paginationStateSubject.next({
-      hasMore: true,
-      currentPage: 0,
-      totalPages: 0,
-      totalCount: 0,
-    });
-  }
-
-  public getTickerData(symbol: string): Observable<TickerData> {
-    return this.httpService
-      .get<TickerData>(`binance/api/binance/ticker/${symbol}`)
-      .pipe(
-        catchError((error) =>
-          this.handleError(`Failed to fetch ticker data for ${symbol}`, error)
-        )
-      );
-  }
-
-  public getAllTickers(): Observable<TickerData[]> {
-    return this.httpService
-      .get<TickerData[]>('binance/api/binance/tickers')
-      .pipe(
-        catchError((error) =>
-          this.handleError('Failed to fetch all tickers', error)
-        )
-      );
-  }
-
-  public getOrderBook(
-    symbol: string,
-    limit: number = 100
-  ): Observable<OrderBookData> {
-    return this.httpService
-      .get<OrderBookData>(
-        `binance/api/binance/orderbook/${symbol}?limit=${limit}`
-      )
-      .pipe(
-        catchError((error) =>
-          this.handleError(`Failed to fetch order book for ${symbol}`, error)
-        )
-      );
-  }
-
-  public getHistoricalData(
-    symbol: string,
-    interval: string = '1h',
-    limit: number = 500
-  ): Observable<HistoricalDataPoint[]> {
-    return this.httpService
-      .get<HistoricalDataPoint[]>(
-        `binance/api/binance/historical-data/${symbol}?interval=${interval}&limit=${limit}`
-      )
-      .pipe(
-        catchError((error) =>
-          this.handleError(
-            `Failed to fetch historical data for ${symbol}`,
-            error
-          )
-        )
-      );
-  }
-
-  public setSelectedPair(pair: TradingPair): void {
-    this.selectedPairSubject.next(pair);
-  }
-
-  public getSelectedPair(): TradingPair | null {
-    return this.selectedPairSubject.value;
-  }
-
-  public getAllTradingPairs(): TradingPair[] {
-    return [...this.allTradingPairs];
-  }
-
-  public getCurrentSearchTerm(): string {
-    return this.currentSearchTerm;
-  }
-
-  public getPopularPairs(): TradingPair[] {
-    const currentPairs = this.tradingPairsSubject.value;
-    return currentPairs
-      .filter(
-        (pair) =>
-          pair.quoteAsset.toLowerCase().includes('usd') &&
-          pair.status === 'TRADING'
-      )
-      .slice(0, 10);
-  }
-
-  public refreshTradingPairs(): Observable<TradingPairsPaginatedResponse> {
-    // Reset loading more state when refreshing
-    this.isLoadingMore = false;
-    return this.fetchTradingPairs(
-      this.currentSearchTerm,
-      1,
-      this.DEFAULT_PAGE_SIZE,
-      false
-    );
-  }
-
-  public canLoadMore(): boolean {
-    const state = this.paginationStateSubject.value;
-    return state.hasMore && !this.isLoadingMore && !this.loadingSubject.value;
-  }
-
-  public isCurrentlyLoadingMore(): boolean {
-    return this.isLoadingMore;
-  }
-
-  private filterAndSortPairs(pairs: TradingPair[]): TradingPair[] {
-    if (!pairs || !Array.isArray(pairs)) {
-      console.warn('filterAndSortPairs received invalid pairs data:', pairs);
-      return [];
-    }
-
-    return pairs
-      .filter((pair) => {
-        return (
-          pair &&
-          pair.status === 'TRADING' &&
-          pair.isSpotTradingAllowed === true
-        );
-      })
-      .sort((a, b) => {
-        if (!a || !b) return 0;
-        if (!a.quoteAsset || !b.quoteAsset) return 0;
-
-        if (a.quoteAsset === 'USDT' && b.quoteAsset !== 'USDT') return -1;
-        if (b.quoteAsset === 'USDT' && a.quoteAsset !== 'USDT') return 1;
-
-        if (!a.symbol || !b.symbol) return 0;
-        return a.symbol.localeCompare(b.symbol);
-      });
-  }
-
+  /**
+   * Initialize default trading pair
+   */
   private initializeDefaultPair(): void {
-    const defaultPair: TradingPair = {
-      symbol: 'BTCUSDT',
-      baseAsset: 'BTC',
-      quoteAsset: 'USDT',
-      status: 'TRADING',
-      baseAssetPrecision: 8,
-      quoteAssetPrecision: 8,
-      orderTypes: ['LIMIT', 'MARKET'],
-      iceBergAllowed: true,
-      ocoAllowed: true,
-      isSpotTradingAllowed: true,
-      isMarginTradingAllowed: true,
-      filters: [],
-    };
-
+    const defaultPair = this.createFallbackPairs()[0];
     this.selectedPairSubject.next(defaultPair);
   }
 
-  private handleError(message: string, error: any): Observable<never> {
-    const errorMessage = error?.error?.message || error?.message || message;
+  /**
+   * Reset internal state
+   */
+  private resetState(): void {
+    this.allTradingPairs.length = 0;
+    this.currentSearchTerm = '';
+    this.paginationState.currentPage = 0;
+    this.paginationState.totalLoaded = 0;
+    this.paginationState.hasMore = true;
+    this.paginationState.isLoading = false;
+    this.paginationState.isLoadingMore = false;
+    this.updatePaginationState();
+  }
+
+  /**
+   * Update pagination state subject
+   */
+  private updatePaginationState(): void {
+    this.paginationStateSubject.next({ ...this.paginationState });
+  }
+
+  /**
+   * Handle API errors
+   */
+  private handleApiError(error: any): void {
+    const errorMessage =
+      error?.error?.message || error?.message || 'Failed to load trading pairs';
     this.errorSubject.next(errorMessage);
-    console.error(message, error);
-    return throwError(() => new Error(errorMessage));
+    console.error('Trading pairs API error:', error);
   }
 }
