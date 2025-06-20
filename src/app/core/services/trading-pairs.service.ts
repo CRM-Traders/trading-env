@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
+import { Observable, BehaviorSubject, throwError, of, EMPTY } from 'rxjs';
 import { catchError, map, shareReplay, finalize, tap } from 'rxjs/operators';
 import { HttpService } from './http.service';
 import { HttpParams } from '@angular/common/http';
@@ -92,12 +92,22 @@ export class TradingPairsService {
 
   // State management
   private readonly allTradingPairs: TradingPair[] = [];
+  private readonly searchResults: TradingPair[] = [];
   private readonly tradingPairsSubject = new BehaviorSubject<TradingPair[]>([]);
   private readonly selectedPairSubject =
     new BehaviorSubject<TradingPair | null>(null);
   private readonly errorSubject = new BehaviorSubject<string | null>(null);
 
   private readonly paginationState: PaginationState = {
+    currentPage: 0,
+    pageSize: this.DEFAULT_PAGE_SIZE,
+    totalLoaded: 0,
+    hasMore: true,
+    isLoading: false,
+    isLoadingMore: false,
+  };
+
+  private readonly searchPaginationState: PaginationState = {
     currentPage: 0,
     pageSize: this.DEFAULT_PAGE_SIZE,
     totalLoaded: 0,
@@ -129,6 +139,7 @@ export class TradingPairsService {
 
   // Current search term
   private currentSearchTerm = '';
+  private isSearchMode = false;
 
   constructor() {
     this.initializeDefaultPair();
@@ -142,54 +153,62 @@ export class TradingPairsService {
       return of(this.allTradingPairs);
     }
 
-    return this.loadTradingPairsPage(1, true);
+    return this.loadTradingPairsPage(1, true, false);
   }
 
   /**
    * Load more trading pairs for infinite scroll
    */
   public loadMoreTradingPairs(): Observable<TradingPair[]> {
-    if (
-      this.paginationState.isLoadingMore ||
-      this.paginationState.isLoading ||
-      !this.paginationState.hasMore
-    ) {
+    const state = this.isSearchMode
+      ? this.searchPaginationState
+      : this.paginationState;
+
+    if (state.isLoadingMore || state.isLoading || !state.hasMore) {
       return of([]);
     }
 
-    const nextPage = this.paginationState.currentPage + 1;
-    return this.loadTradingPairsPage(nextPage, false);
+    const nextPage = state.currentPage + 1;
+    return this.loadTradingPairsPage(nextPage, false, this.isSearchMode);
   }
 
   /**
-   * Search trading pairs - this filters locally for better performance
+   * Search trading pairs from backend
    */
   public searchTradingPairs(searchTerm: string): Observable<TradingPair[]> {
     this.currentSearchTerm = searchTerm.toLowerCase().trim();
-    this.paginationState.currentPage = 0;
 
     if (!this.currentSearchTerm) {
-      this.tradingPairsSubject.next([...this.allTradingPairs]);
-      return of(this.allTradingPairs);
+      return this.clearSearch();
     }
 
-    const filteredPairs = this.allTradingPairs.filter(
-      (pair) =>
-        pair.symbol.toLowerCase().includes(this.currentSearchTerm) ||
-        pair.baseAsset.toLowerCase().includes(this.currentSearchTerm) ||
-        pair.quoteAsset.toLowerCase().includes(this.currentSearchTerm)
-    );
+    // Reset search state
+    this.isSearchMode = true;
+    this.searchResults.length = 0;
+    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.totalLoaded = 0;
+    this.searchPaginationState.hasMore = true;
 
-    this.tradingPairsSubject.next(filteredPairs);
-    return of(filteredPairs);
+    return this.loadTradingPairsPage(1, true, true);
   }
 
   /**
-   * Clear search and return all pairs
+   * Clear search and return to normal mode
    */
   public clearSearch(): Observable<TradingPair[]> {
     this.currentSearchTerm = '';
+    this.isSearchMode = false;
+    this.searchResults.length = 0;
+
+    // Reset search pagination state
+    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.totalLoaded = 0;
+    this.searchPaginationState.hasMore = true;
+
+    // Update to show all loaded pairs
     this.tradingPairsSubject.next([...this.allTradingPairs]);
+    this.updatePaginationState();
+
     return of(this.allTradingPairs);
   }
 
@@ -198,26 +217,27 @@ export class TradingPairsService {
    */
   public refreshTradingPairs(): Observable<TradingPair[]> {
     this.resetState();
-    return this.loadTradingPairsPage(1, true);
+    return this.loadTradingPairsPage(1, true, false);
   }
 
   /**
    * Check if more data can be loaded
    */
   public canLoadMore(): boolean {
-    return (
-      this.paginationState.hasMore &&
-      !this.paginationState.isLoading &&
-      !this.paginationState.isLoadingMore &&
-      !this.currentSearchTerm
-    ); // Don't load more when searching
+    const state = this.isSearchMode
+      ? this.searchPaginationState
+      : this.paginationState;
+    return state.hasMore && !state.isLoading && !state.isLoadingMore;
   }
 
   /**
    * Check if currently loading more data
    */
   public isCurrentlyLoadingMore(): boolean {
-    return this.paginationState.isLoadingMore;
+    const state = this.isSearchMode
+      ? this.searchPaginationState
+      : this.paginationState;
+    return state.isLoadingMore;
   }
 
   /**
@@ -225,6 +245,13 @@ export class TradingPairsService {
    */
   public getCurrentSearchTerm(): string {
     return this.currentSearchTerm;
+  }
+
+  /**
+   * Check if in search mode
+   */
+  public isInSearchMode(): boolean {
+    return this.isSearchMode;
   }
 
   /**
@@ -343,48 +370,54 @@ export class TradingPairsService {
    */
   private loadTradingPairsPage(
     page: number,
-    isInitial: boolean
+    isInitial: boolean,
+    isSearch: boolean
   ): Observable<TradingPair[]> {
+    const state = isSearch ? this.searchPaginationState : this.paginationState;
     const isLoadingMore = !isInitial && page > 1;
 
     // Update loading state
     if (isLoadingMore) {
-      this.paginationState.isLoadingMore = true;
+      state.isLoadingMore = true;
     } else {
-      this.paginationState.isLoading = true;
+      state.isLoading = true;
     }
 
     this.updatePaginationState();
     this.errorSubject.next(null);
 
-    return this.httpService
-      .get<any>(
-        `binance/api/binance/trading-pairs?pageIndex=${page - 1}&pageSize=${
-          this.paginationState.pageSize
-        }`
-      )
-      .pipe(
-        tap(() =>
-          console.log(`Loading page ${page}, isLoadingMore: ${isLoadingMore}`)
-        ),
-        map((response) =>
-          this.processApiResponse(response, page, isLoadingMore)
-        ),
-        tap((pairs) =>
-          console.log(`Loaded ${pairs.length} pairs for page ${page}`)
-        ),
-        shareReplay(1),
-        finalize(() => {
-          this.paginationState.isLoading = false;
-          this.paginationState.isLoadingMore = false;
-          this.updatePaginationState();
-        }),
-        catchError((error) => {
-          console.error(`Error loading trading pairs page ${page}:`, error);
-          this.handleApiError(error);
-          return of([]);
-        })
-      );
+    // Build URL with search parameter if needed
+    let url = `binance/api/binance/trading-pairs?pageIndex=${
+      page - 1
+    }&pageSize=${state.pageSize}`;
+    if (isSearch && this.currentSearchTerm) {
+      url += `&search=${encodeURIComponent(this.currentSearchTerm)}`;
+    }
+
+    return this.httpService.get<any>(url).pipe(
+      tap(() =>
+        console.log(
+          `Loading page ${page}, isLoadingMore: ${isLoadingMore}, isSearch: ${isSearch}, searchTerm: ${this.currentSearchTerm}`
+        )
+      ),
+      map((response) =>
+        this.processApiResponse(response, page, isLoadingMore, isSearch)
+      ),
+      tap((pairs) =>
+        console.log(`Loaded ${pairs.length} pairs for page ${page}`)
+      ),
+      shareReplay(1),
+      finalize(() => {
+        state.isLoading = false;
+        state.isLoadingMore = false;
+        this.updatePaginationState();
+      }),
+      catchError((error) => {
+        console.error(`Error loading trading pairs page ${page}:`, error);
+        this.handleApiError(error);
+        return of([]);
+      })
+    );
   }
 
   /**
@@ -393,7 +426,8 @@ export class TradingPairsService {
   private processApiResponse(
     response: any,
     page: number,
-    isLoadingMore: boolean
+    isLoadingMore: boolean,
+    isSearch: boolean
   ): TradingPair[] {
     let pairs: TradingPair[] = [];
     let hasMoreData = false;
@@ -402,11 +436,14 @@ export class TradingPairsService {
     if (Array.isArray(response)) {
       // Direct array response
       pairs = this.filterAndSortPairs(response);
-      hasMoreData = pairs.length === this.paginationState.pageSize;
+      hasMoreData = pairs.length === this.DEFAULT_PAGE_SIZE;
     } else if (response && response.items && Array.isArray(response.items)) {
       // Paginated response
       pairs = this.filterAndSortPairs(response.items);
-      hasMoreData = response.hasNextPage || false;
+      hasMoreData =
+        response.hasNextPage !== undefined
+          ? response.hasNextPage
+          : pairs.length === this.DEFAULT_PAGE_SIZE;
     } else {
       // Fallback to default pairs
       console.warn('Unexpected API response format, using fallback data');
@@ -414,24 +451,37 @@ export class TradingPairsService {
       hasMoreData = false;
     }
 
-    // Update internal state
-    if (isLoadingMore) {
-      // Append new pairs
-      this.allTradingPairs.push(...pairs);
-      this.paginationState.currentPage = page;
-      this.paginationState.totalLoaded = this.allTradingPairs.length;
-      this.paginationState.hasMore = hasMoreData;
+    // Update internal state based on mode
+    if (isSearch) {
+      const state = this.searchPaginationState;
+      if (isLoadingMore) {
+        this.searchResults.push(...pairs);
+      } else {
+        this.searchResults.length = 0;
+        this.searchResults.push(...pairs);
+      }
+      state.currentPage = page;
+      state.totalLoaded = this.searchResults.length;
+      state.hasMore = hasMoreData;
+
+      // Update subject with search results
+      this.tradingPairsSubject.next([...this.searchResults]);
     } else {
-      // Replace all pairs (initial load or refresh)
-      this.allTradingPairs.length = 0;
-      this.allTradingPairs.push(...pairs);
-      this.paginationState.currentPage = page;
-      this.paginationState.totalLoaded = pairs.length;
-      this.paginationState.hasMore = hasMoreData;
+      const state = this.paginationState;
+      if (isLoadingMore) {
+        this.allTradingPairs.push(...pairs);
+      } else {
+        this.allTradingPairs.length = 0;
+        this.allTradingPairs.push(...pairs);
+      }
+      state.currentPage = page;
+      state.totalLoaded = this.allTradingPairs.length;
+      state.hasMore = hasMoreData;
+
+      // Update subject with all pairs
+      this.tradingPairsSubject.next([...this.allTradingPairs]);
     }
 
-    // Update subjects
-    this.tradingPairsSubject.next([...this.allTradingPairs]);
     this.updatePaginationState();
 
     // Set default selected pair if none selected
@@ -549,12 +599,24 @@ export class TradingPairsService {
    */
   private resetState(): void {
     this.allTradingPairs.length = 0;
+    this.searchResults.length = 0;
     this.currentSearchTerm = '';
+    this.isSearchMode = false;
+
+    // Reset normal pagination state
     this.paginationState.currentPage = 0;
     this.paginationState.totalLoaded = 0;
     this.paginationState.hasMore = true;
     this.paginationState.isLoading = false;
     this.paginationState.isLoadingMore = false;
+
+    // Reset search pagination state
+    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.totalLoaded = 0;
+    this.searchPaginationState.hasMore = true;
+    this.searchPaginationState.isLoading = false;
+    this.searchPaginationState.isLoadingMore = false;
+
     this.updatePaginationState();
   }
 
@@ -562,7 +624,10 @@ export class TradingPairsService {
    * Update pagination state subject
    */
   private updatePaginationState(): void {
-    this.paginationStateSubject.next({ ...this.paginationState });
+    const state = this.isSearchMode
+      ? this.searchPaginationState
+      : this.paginationState;
+    this.paginationStateSubject.next({ ...state });
   }
 
   /**

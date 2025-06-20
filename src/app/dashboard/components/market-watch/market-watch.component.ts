@@ -79,7 +79,6 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Search management
   private readonly searchSubject = new Subject<string>();
-  private readonly localSearchSubject = new BehaviorSubject<string>('');
 
   // Market data cache
   private readonly marketDataCache = new Map<string, TickerData>();
@@ -144,10 +143,10 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   /**
-   * Setup search handling with debouncing and local filtering
+   * Setup search handling with debouncing
    */
   private setupSearchHandling(): void {
-    // Setup API search debouncing (for initial data loading)
+    // Setup API search debouncing
     this.searchSubject
       .pipe(
         debounceTime(300),
@@ -168,13 +167,8 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
       )
       .subscribe(() => {
         // Results are handled by tradingPairs$ subscription
-      });
-
-    // Setup local search for real-time filtering
-    this.localSearchSubject
-      .pipe(debounceTime(150), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((searchTerm) => {
-        this.applyLocalFilter(searchTerm);
+        // Load ticker data for the first few results
+        this.loadInitialMarketData();
       });
   }
 
@@ -240,34 +234,10 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
     });
 
     this.allTradingPairs = displayPairs;
-
-    // Apply current search filter
-    this.applyLocalFilter(this.searchTerm);
+    this.filteredPairs = displayPairs;
 
     console.log(
       `Updated trading pairs list: ${this.allTradingPairs.length} total pairs`
-    );
-  }
-
-  /**
-   * Apply local search filter to trading pairs
-   */
-  private applyLocalFilter(searchTerm: string): void {
-    if (!searchTerm.trim()) {
-      this.filteredPairs = [...this.allTradingPairs];
-    } else {
-      const searchLower = searchTerm.toLowerCase();
-      this.filteredPairs = this.allTradingPairs.filter(
-        (pair) =>
-          pair.symbol.toLowerCase().includes(searchLower) ||
-          pair.baseAsset.toLowerCase().includes(searchLower) ||
-          pair.quoteAsset.toLowerCase().includes(searchLower) ||
-          pair.displayName.toLowerCase().includes(searchLower)
-      );
-    }
-
-    console.log(
-      `Filtered pairs: ${this.filteredPairs.length} of ${this.allTradingPairs.length}`
     );
   }
 
@@ -508,13 +478,10 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
       isNearBottom,
       canLoadMore: this.tradingPairsService.canLoadMore(),
       searchTerm: this.searchTerm,
+      isSearchMode: this.tradingPairsService.isInSearchMode(),
     });
 
-    if (
-      isNearBottom &&
-      this.tradingPairsService.canLoadMore() &&
-      !this.searchTerm.trim()
-    ) {
+    if (isNearBottom && this.tradingPairsService.canLoadMore()) {
       console.log('Loading more trading pairs...');
       this.loadMorePairs();
     }
@@ -549,14 +516,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   public onSearchChange(searchTerm: string): void {
     this.searchTerm = searchTerm;
-
-    if (searchTerm.trim()) {
-      this.localSearchSubject.next(searchTerm);
-      this.searchSubject.next(searchTerm);
-    } else {
-      this.filteredPairs = [...this.allTradingPairs];
-      this.tradingPairsService.clearSearch().subscribe();
-    }
+    this.searchSubject.next(searchTerm);
   }
 
   /**
@@ -566,7 +526,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
     this.tradingPairsService.setSelectedPair(pair);
     this.showPairSelector = false;
     this.searchTerm = '';
-    this.localSearchSubject.next('');
+    this.searchSubject.next('');
   }
 
   /**
@@ -582,9 +542,9 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
         }
       }, 100);
     } else {
+      // Clear search when closing
       this.searchTerm = '';
-      this.filteredPairs = [...this.allTradingPairs];
-      this.tradingPairsService.clearSearch().subscribe();
+      this.searchSubject.next('');
     }
   }
 
@@ -650,8 +610,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!target.closest('.pair-selector-container')) {
       this.showPairSelector = false;
       this.searchTerm = '';
-      this.filteredPairs = [...this.allTradingPairs];
-      this.tradingPairsService.clearSearch().subscribe();
+      this.searchSubject.next('');
     }
   }
 }
