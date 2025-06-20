@@ -27,7 +27,7 @@ export interface WalletBalance {
 })
 export class WalletService {
   private readonly http = inject(HttpService);
-  private readonly baseUrl = `${environment.gatewayDomain}/api/wallets`;
+  private readonly baseUrl = `traiding/api/wallets`;
 
   private readonly balancesSubject = new BehaviorSubject<WalletBalance[]>([]);
   public readonly balances$ = this.balancesSubject.asObservable();
@@ -119,7 +119,6 @@ export class WalletService {
       }
     }
 
-    console.error('Wallet Service Error:', error);
     return throwError(() => new Error(errorMessage));
   }
 }

@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  HostListener,
+  inject,
+  Input,
+  Output,
+} from '@angular/core';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-header',
@@ -8,11 +16,14 @@ import { Component, EventEmitter, HostListener, Input, Output } from '@angular/c
   styleUrl: './header.component.scss',
 })
 export class HeaderComponent {
-  @Input() title = 'Dashboard';
+  authService = inject(AuthService);
+
+  title = 'Dashboard';
   @Input() isUserDropdownOpen = false;
-  @Input() userName = 'John Doe';
-  @Input() userEmail = 'john.doe@example.com';
-  @Input() userInitials = 'JD';
+  userName = this.authService.getName();
+  userEmail = this.authService.getRole();
+  userInitials =
+    this.userName[0].toUpperCase() + this.userName[1].toUpperCase();
 
   @Output() toggleSidebar = new EventEmitter<void>();
   @Output() toggleUserDropdown = new EventEmitter<void>();
