@@ -1,8 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@microsoft/signalr';
 import { BehaviorSubject, Observable, map, catchError, throwError } from 'rxjs';
-import { environment } from '../../../environments/environment';
 import { HttpService } from './http.service';
 
 export interface TradingAccount {

@@ -37,6 +37,21 @@ export interface PagedResult<T> {
   hasNextPage: boolean;
 }
 
+// New interface for open orders
+export interface OpenOrder {
+  id: string;
+  tradingPairSymbol: string;
+  orderType: string;
+  side: string;
+  price: number;
+  quantity: number;
+  filledQuantity: number;
+  remainingQuantity: number;
+  status: string;
+  createdAt: Date;
+  progressPercentage: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -45,7 +60,10 @@ export class TradingService {
   private readonly baseUrl = `${environment.gatewayDomain}/api/trading`;
 
   private readonly ordersSubject = new BehaviorSubject<OrderResponse[]>([]);
+  private readonly openOrdersSubject = new BehaviorSubject<OpenOrder[]>([]);
+
   public readonly orders$ = this.ordersSubject.asObservable();
+  public readonly openOrders$ = this.openOrdersSubject.asObservable();
 
   /**
    * Create a new spot trading order
@@ -152,12 +170,70 @@ export class TradingService {
   }
 
   /**
+   * Get open orders for a trading account (NEW ENDPOINT)
+   */
+  getOpenOrders(
+    tradingAccountId: string,
+    pageIndex: number = 1,
+    pageSize: number = 20
+  ): Observable<PagedResult<OpenOrder>> {
+    const params = {
+      pageIndex: pageIndex.toString(),
+      pageSize: pageSize.toString(),
+    };
+
+    return this.http
+      .get<PagedResult<OrderResponse>>(
+        `${this.baseUrl}/orders/${tradingAccountId}?pageSize=${pageSize}&pageIndex=${pageIndex}`
+      )
+      .pipe(
+        map((result) => {
+          const openOrders = result.items
+            .filter((order) =>
+              ['Pending', 'PartiallyFilled', 'Open'].includes(order.status)
+            )
+            .map(this.mapToOpenOrder);
+
+          this.openOrdersSubject.next(openOrders);
+
+          return {
+            ...result,
+            items: openOrders,
+          };
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  /**
    * Cancel an order
    */
   cancelOrder(orderId: string): Observable<void> {
     return this.http
       .delete<void>(`${this.baseUrl}/order/${orderId}`)
       .pipe(retry(1), catchError(this.handleError));
+  }
+
+  /**
+   * Map OrderResponse to OpenOrder with additional calculated fields
+   */
+  private mapToOpenOrder(order: OrderResponse): OpenOrder {
+    const progressPercentage =
+      order.quantity > 0 ? (order.filledQuantity / order.quantity) * 100 : 0;
+
+    return {
+      id: order.id,
+      tradingPairSymbol: order.tradingPairSymbol,
+      orderType: order.orderType,
+      side: order.side,
+      price: order.price,
+      quantity: order.quantity,
+      filledQuantity: order.filledQuantity,
+      remainingQuantity: order.remainingQuantity,
+      status: order.status,
+      createdAt: new Date(order.createdAt),
+      progressPercentage,
+    };
   }
 
   private handleError(error: HttpErrorResponse): Observable<never> {

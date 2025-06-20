@@ -27,6 +27,7 @@ import { TradingPairsService } from '../../../core/services/trading-pairs.servic
 import {
   TradingService,
   CreateOrderRequest,
+  OpenOrder,
 } from '../../../core/services/trading.service';
 import { WalletService } from '../../../core/services/wallet.service';
 import { TradingAccountService } from '../../../core/services/trading-account.service';
@@ -59,6 +60,11 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   showTradingModal = false;
   isSubmitting = false;
   isLoading = false;
+
+  // New properties for open orders
+  currentViewTab: 'positions' | 'orders' = 'positions';
+  openOrders: OpenOrder[] = [];
+  isLoadingOrders = false;
 
   currentPrice = 0;
   selectedPair: any = null;
@@ -99,6 +105,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       this.setupFormSubscriptions();
       this.setupMarketDataSubscriptions();
       this.setupPositionSubscriptions();
+      this.setupOrderSubscriptions();
       await this.loadInitialData();
     } catch (error) {
       this.handleComponentError(
@@ -207,6 +214,17 @@ export class TradingFormComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Setup order subscriptions for real-time order updates
+   */
+  private setupOrderSubscriptions(): void {
+    this.tradingService.openOrders$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((orders) => {
+        this.openOrders = orders;
+      });
+  }
+
+  /**
    * Load the current trading account
    */
   private async loadTradingAccount(): Promise<void> {
@@ -238,6 +256,7 @@ export class TradingFormComponent implements OnInit, OnDestroy {
     const loadingPromises = [
       this.loadAvailableBalance(),
       this.loadPositions(),
+      this.loadOpenOrders(),
       this.loadMarketData(),
     ];
 
@@ -301,6 +320,56 @@ export class TradingFormComponent implements OnInit, OnDestroy {
       this.calculateTotalPnL();
     } catch (error) {
       this.notificationService.showWarning('Failed to load open positions');
+    }
+  }
+
+  /**
+   * Load open orders (NEW METHOD)
+   */
+  async loadOpenOrders(): Promise<void> {
+    if (!this.currentTradingAccount) return;
+
+    this.isLoadingOrders = true;
+    try {
+      const result = await this.tradingService
+        .getOpenOrders(this.currentTradingAccount.id)
+        .toPromise();
+
+      this.openOrders = result?.items || [];
+    } catch (error) {
+      this.notificationService.showWarning('Failed to load open orders');
+      console.error('Error loading open orders:', error);
+    } finally {
+      this.isLoadingOrders = false;
+    }
+  }
+
+  /**
+   * Cancel an open order (NEW METHOD)
+   */
+  async cancelOrder(orderId: string): Promise<void> {
+    try {
+      await this.tradingService.cancelOrder(orderId).toPromise();
+      this.notificationService.showSuccess('Order cancelled successfully');
+
+      // Refresh orders after cancelling
+      await this.loadOpenOrders();
+      await this.loadAvailableBalance();
+    } catch (error: any) {
+      console.error('Failed to cancel order:', error);
+      this.notificationService.showError(
+        error.message || 'Failed to cancel order'
+      );
+    }
+  }
+
+  /**
+   * Switch between positions and orders view (NEW METHOD)
+   */
+  switchViewTab(tab: 'positions' | 'orders'): void {
+    this.currentViewTab = tab;
+    if (tab === 'orders') {
+      this.loadOpenOrders();
     }
   }
 
@@ -581,6 +650,13 @@ export class TradingFormComponent implements OnInit, OnDestroy {
     return position.id;
   }
 
+  /**
+   * Track by function for order list performance (NEW METHOD)
+   */
+  trackByOrderId(index: number, order: OpenOrder): string {
+    return order.id;
+  }
+
   // Modal Management
 
   /**
@@ -630,6 +706,34 @@ export class TradingFormComponent implements OnInit, OnDestroy {
    */
   getPnLClass(pnl: number): string {
     return pnl >= 0 ? 'text-green-400' : 'text-red-400';
+  }
+
+  /**
+   * Get CSS class for order status (NEW METHOD)
+   */
+  getStatusClass(status: string): string {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'open':
+        return 'text-yellow-400 bg-yellow-950/50 border-yellow-800/50';
+      case 'partiallyfilled':
+        return 'text-blue-400 bg-blue-950/50 border-blue-800/50';
+      case 'filled':
+        return 'text-green-400 bg-green-950/50 border-green-800/50';
+      case 'cancelled':
+        return 'text-red-400 bg-red-950/50 border-red-800/50';
+      default:
+        return 'text-gray-400 bg-gray-950/50 border-gray-800/50';
+    }
+  }
+
+  /**
+   * Get order side class (NEW METHOD)
+   */
+  getOrderSideClass(side: string): string {
+    return side.toLowerCase() === 'buy'
+      ? 'text-green-400 bg-green-950/50 border-green-800/50'
+      : 'text-red-400 bg-red-950/50 border-red-800/50';
   }
 
   /**

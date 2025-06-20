@@ -288,35 +288,62 @@
   </form>
 </div>
 
-<!-- Open Positions -->
+<!-- Open Positions & Orders Section -->
 <div class="bg-gray-800 rounded-lg mt-0 lg:mt-4 p-2 sm:p-3">
-  <!-- Header -->
+  <!-- Header with Tabs -->
   <div class="flex items-center justify-between mb-3">
-    <h3 class="text-sm font-bold text-gray-100 flex items-center">
-      <svg
-        class="w-4 h-4 text-blue-400 mr-2"
-        fill="currentColor"
-        viewBox="0 0 20 20"
-      >
-        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      Open Positions
-      <span
-        *ngIf="currentTradingMode === 'cross'"
-        class="ml-2 text-orange-400 text-xs"
-      >
-        (Cross {{ leverageOptions.length > 0 ? leverageOptions[0] : "1" }}x)
-      </span>
-    </h3>
-    <div class="flex items-center space-x-2">
-      <span class="text-xs text-gray-400">{{ positions.length }}</span>
+    <div class="flex items-center space-x-1">
+      <!-- Tab Buttons -->
       <button
-        (click)="loadPositions()"
+        (click)="switchViewTab('positions')"
+        [class]="
+          currentViewTab === 'positions'
+            ? 'bg-blue-600 text-white'
+            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+        "
+        class="px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center space-x-1"
+      >
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Positions</span>
+        <span class="bg-gray-600 text-xs px-1 rounded">{{
+          positions.length
+        }}</span>
+      </button>
+
+      <button
+        (click)="switchViewTab('orders')"
+        [class]="
+          currentViewTab === 'orders'
+            ? 'bg-blue-600 text-white'
+            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+        "
+        class="px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center space-x-1"
+      >
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+          />
+        </svg>
+        <span>Orders</span>
+        <span class="bg-gray-600 text-xs px-1 rounded">{{
+          openOrders.length
+        }}</span>
+      </button>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <button
+        (click)="
+          currentViewTab === 'positions' ? loadPositions() : loadOpenOrders()
+        "
         class="text-gray-400 hover:text-white transition-colors"
-        title="Refresh positions"
+        title="Refresh"
       >
         <svg
           class="w-4 h-4"
+          [class.animate-spin]="isLoadingOrders"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -332,157 +359,277 @@
     </div>
   </div>
 
-  <!-- Positions List -->
+  <!-- Content Area -->
   <div class="space-y-2 max-h-96 overflow-y-auto">
-    <!-- No Positions State -->
-    <div *ngIf="positions.length === 0" class="text-center py-8 text-gray-400">
-      <svg
-        class="w-12 h-12 mx-auto mb-2 opacity-50"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-        ></path>
-      </svg>
-      <p class="text-sm">No open positions</p>
-      <p class="text-xs mt-1">Start trading to see your positions here</p>
-    </div>
-
-    <!-- Position Items -->
-    <div
-      *ngFor="let position of positions; trackBy: trackByPositionId"
-      class="bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
-    >
-      <!-- Position Header -->
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center space-x-2">
-          <span class="font-bold text-gray-100 text-sm">{{
-            position.symbol
-          }}</span>
-          <span
-            [class]="
-              position.side === 'Long'
-                ? 'text-green-400 bg-green-950/50 border-green-800/50'
-                : 'text-red-400 bg-red-950/50 border-red-800/50'
-            "
-            class="text-xs font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider"
-          >
-            {{ position.side }}
-          </span>
-          <span
-            class="text-xs text-gray-500 bg-gray-700/50 px-2 py-0.5 rounded-full"
-          >
-            {{ position.leverage }}x
-          </span>
-        </div>
-        <div class="flex items-center space-x-2">
-          <div class="text-right">
-            <div
-              class="font-mono font-semibold text-sm"
-              [class]="getPnLClass(position.unrealizedPnL)"
-            >
-              {{ formatPnL(position.unrealizedPnL) }}
-            </div>
-            <div
-              class="text-xs"
-              [class]="getPnLClass(position.unrealizedPnLPercentage)"
-            >
-              {{ position.unrealizedPnLPercentage >= 0 ? "+" : ""
-              }}{{ position.unrealizedPnLPercentage | number : "1.1-1" }}%
-            </div>
-          </div>
-          <button
-            (click)="closePosition(position.id)"
-            class="text-gray-400 hover:text-red-400 transition-colors"
-            title="Close position"
-          >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Position Details -->
-      <div class="grid grid-cols-3 gap-2 text-xs text-gray-400">
-        <div>
-          <span class="block">Size</span>
-          <span class="text-gray-300 font-medium">{{
-            position.size | number : "1.0-4"
-          }}</span>
-        </div>
-        <div>
-          <span class="block">Entry</span>
-          <span class="text-gray-300 font-mono"
-            >${{ position.entryPrice | number : "1.2-4" }}</span
-          >
-        </div>
-        <div>
-          <span class="block">Current</span>
-          <span class="text-gray-300 font-mono"
-            >${{ position.currentPrice | number : "1.2-4" }}</span
-          >
-        </div>
-      </div>
-
-      <!-- Stop Loss / Take Profit -->
+    <!-- Positions Tab Content -->
+    <div *ngIf="currentViewTab === 'positions'">
+      <!-- No Positions State -->
       <div
-        *ngIf="position.stopLoss || position.takeProfit"
-        class="grid grid-cols-2 gap-2 text-xs text-gray-400 mt-2"
+        *ngIf="positions.length === 0"
+        class="text-center py-8 text-gray-400"
       >
-        <div *ngIf="position.stopLoss">
-          <span class="block">Stop Loss</span>
-          <span class="text-red-400 font-mono"
-            >${{ position.stopLoss | number : "1.2-4" }}</span
-          >
+        <svg
+          class="w-12 h-12 mx-auto mb-2 opacity-50"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+          ></path>
+        </svg>
+        <p class="text-sm">No open positions</p>
+        <p class="text-xs mt-1">Start trading to see your positions here</p>
+      </div>
+
+      <!-- Position Items -->
+      <div
+        *ngFor="let position of positions; trackBy: trackByPositionId"
+        class="bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
+      >
+        <!-- Position Header -->
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-gray-100 text-sm">{{
+              position.symbol
+            }}</span>
+            <span
+              [class]="
+                position.side === 'Long'
+                  ? 'text-green-400 bg-green-950/50 border-green-800/50'
+                  : 'text-red-400 bg-red-950/50 border-red-800/50'
+              "
+              class="text-xs font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider"
+            >
+              {{ position.side }}
+            </span>
+            <span
+              class="text-xs text-gray-500 bg-gray-700/50 px-2 py-0.5 rounded-full"
+            >
+              {{ position.leverage }}x
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <div class="text-right">
+              <div
+                class="font-mono font-semibold text-sm"
+                [class]="getPnLClass(position.unrealizedPnL)"
+              >
+                {{ formatPnL(position.unrealizedPnL) }}
+              </div>
+              <div
+                class="text-xs"
+                [class]="getPnLClass(position.unrealizedPnLPercentage)"
+              >
+                {{ position.unrealizedPnLPercentage >= 0 ? "+" : ""
+                }}{{ position.unrealizedPnLPercentage | number : "1.1-1" }}%
+              </div>
+            </div>
+            <button
+              (click)="closePosition(position.id)"
+              class="text-gray-400 hover:text-red-400 transition-colors"
+              title="Close position"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                ></path>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div *ngIf="position.takeProfit">
-          <span class="block">Take Profit</span>
-          <span class="text-green-400 font-mono"
-            >${{ position.takeProfit | number : "1.2-4" }}</span
-          >
+
+        <!-- Position Details -->
+        <div class="grid grid-cols-3 gap-2 text-xs text-gray-400">
+          <div>
+            <span class="block">Size</span>
+            <span class="text-gray-300 font-medium">{{
+              position.size | number : "1.0-4"
+            }}</span>
+          </div>
+          <div>
+            <span class="block">Entry</span>
+            <span class="text-gray-300 font-mono"
+              >${{ position.entryPrice | number : "1.2-4" }}</span
+            >
+          </div>
+          <div>
+            <span class="block">Current</span>
+            <span class="text-gray-300 font-mono"
+              >${{ position.currentPrice | number : "1.2-4" }}</span
+            >
+          </div>
         </div>
       </div>
 
-      <!-- Liquidation Price -->
-      <div class="mt-2 text-xs text-gray-400">
-        <span class="block">Liquidation Price</span>
-        <span class="text-yellow-400 font-mono"
-          >${{ position.liquidationPrice | number : "1.2-4" }}</span
-        >
+      <!-- Total P&L Summary for Positions -->
+      <div
+        *ngIf="positions.length > 0"
+        class="border-t border-gray-700/50 pt-3 mt-3"
+      >
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-gray-400">Total Unrealized P&L</span>
+          <div class="text-right">
+            <span
+              class="font-bold font-mono text-lg"
+              [class]="getPnLClass(totalPnL)"
+            >
+              {{ formatPnL(totalPnL) }}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Total P&L Summary -->
-  <div
-    *ngIf="positions.length > 0"
-    class="border-t border-gray-700/50 pt-3 mt-3"
-  >
-    <div class="flex justify-between items-center">
-      <span class="text-sm text-gray-400">Total Unrealized P&L</span>
-      <div class="text-right">
-        <span
-          class="font-bold font-mono text-lg"
-          [class]="getPnLClass(totalPnL)"
+    <!-- Orders Tab Content -->
+    <div *ngIf="currentViewTab === 'orders'">
+      <!-- Loading State -->
+      <div *ngIf="isLoadingOrders" class="text-center py-8 text-gray-400">
+        <svg
+          class="animate-spin w-8 h-8 mx-auto mb-2"
+          fill="none"
+          viewBox="0 0 24 24"
         >
-          {{ formatPnL(totalPnL) }}
-        </span>
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <p class="text-sm">Loading orders...</p>
+      </div>
+
+      <!-- No Orders State -->
+      <div
+        *ngIf="!isLoadingOrders && openOrders.length === 0"
+        class="text-center py-8 text-gray-400"
+      >
+        <svg
+          class="w-12 h-12 mx-auto mb-2 opacity-50"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+          ></path>
+        </svg>
+        <p class="text-sm">No open orders</p>
+        <p class="text-xs mt-1">Place an order to see it here</p>
+      </div>
+
+      <!-- Order Items -->
+      <div
+        *ngFor="let order of openOrders; trackBy: trackByOrderId"
+        class="bg-gray-800/60 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/60 hover:border-gray-600/60 transition-all duration-200"
+      >
+        <!-- Order Header -->
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-gray-100 text-sm">{{
+              order.tradingPairSymbol
+            }}</span>
+            <span
+              [class]="getOrderSideClass(order.side)"
+              class="text-xs font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider"
+            >
+              {{ order.side }}
+            </span>
+            <span
+              [class]="getStatusClass(order.status)"
+              class="text-xs font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider"
+            >
+              {{ order.status }}
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <div class="text-right">
+              <div class="text-xs text-gray-400">{{ order.orderType }}</div>
+              <div class="text-xs text-gray-500">
+                {{ order.createdAt | date : "MMM dd, HH:mm" }}
+              </div>
+            </div>
+            <button
+              (click)="cancelOrder(order.id)"
+              class="text-gray-400 hover:text-red-400 transition-colors"
+              title="Cancel order"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                ></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Order Details -->
+        <div class="grid grid-cols-3 gap-2 text-xs text-gray-400 mb-2">
+          <div>
+            <span class="block">Price</span>
+            <span class="text-gray-300 font-mono"
+              >${{ order.price | number : "1.2-4" }}</span
+            >
+          </div>
+          <div>
+            <span class="block">Quantity</span>
+            <span class="text-gray-300 font-medium">{{
+              order.quantity | number : "1.0-4"
+            }}</span>
+          </div>
+          <div>
+            <span class="block">Filled</span>
+            <span class="text-gray-300 font-medium">{{
+              order.filledQuantity | number : "1.0-4"
+            }}</span>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mt-2">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs text-gray-400">Progress</span>
+            <span class="text-xs text-gray-400"
+              >{{ order.progressPercentage | number : "1.0-0" }}%</span
+            >
+          </div>
+          <div class="w-full bg-gray-700 rounded-full h-1.5">
+            <div
+              class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+              [style.width.%]="order.progressPercentage"
+            ></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
