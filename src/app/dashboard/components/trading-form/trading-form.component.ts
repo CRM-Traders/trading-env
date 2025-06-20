@@ -327,20 +327,43 @@ export class TradingFormComponent implements OnInit, OnDestroy {
    * Load open orders (NEW METHOD)
    */
   async loadOpenOrders(): Promise<void> {
-    if (!this.currentTradingAccount) return;
+    if (!this.currentTradingAccount?.id) {
+      console.warn('No trading account available for loading orders');
+      return;
+    }
+
+    // Prevent multiple simultaneous calls
+    if (this.isLoadingOrders) {
+      console.log('Already loading orders, skipping duplicate call');
+      return;
+    }
 
     this.isLoadingOrders = true;
+    console.log('Starting to load open orders...');
+
     try {
       const result = await this.tradingService
-        .getOpenOrders(this.currentTradingAccount.id)
+        .getOpenOrders(this.currentTradingAccount.id, 1, 20)
         .toPromise();
 
-      this.openOrders = result?.items || [];
-    } catch (error) {
-      this.notificationService.showWarning('Failed to load open orders');
+      console.log('Orders API response:', result);
+
+      // Ensure we handle the response correctly
+      if (result) {
+        this.openOrders = result.items || [];
+        console.log(`Loaded ${this.openOrders.length} orders successfully`);
+      } else {
+        console.warn('No result from orders API');
+        this.openOrders = [];
+      }
+    } catch (error: any) {
       console.error('Error loading open orders:', error);
+      this.notificationService.showWarning('Failed to load open orders');
+      this.openOrders = []; // Ensure we have a fallback state
     } finally {
+      // Always ensure loading state is reset
       this.isLoadingOrders = false;
+      console.log('Finished loading orders, isLoadingOrders set to false');
     }
   }
 

@@ -84,10 +84,11 @@
           </span>
         </div>
 
-        <!-- Dropdown for Pair Selection -->
+        <!-- Dropdown for Pair Selection with Infinite Scroll -->
         <div
           *ngIf="showPairSelector"
           class="absolute top-6 left-0 bg-gray-700 rounded-lg shadow-lg border border-gray-600 z-20 w-full sm:w-72 max-w-sm max-h-96 overflow-hidden"
+          #pairDropdownContainer
         >
           <!-- Search Input -->
           <div class="p-2 border-b border-gray-600">
@@ -102,17 +103,24 @@
           </div>
 
           <!-- Loading state -->
-          <div *ngIf="isLoading" class="p-4 text-center">
+          <div
+            *ngIf="isLoading && filteredPairs.length === 0"
+            class="p-4 text-center"
+          >
             <div
               class="animate-spin w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto"
             ></div>
             <p class="text-gray-400 text-xs mt-2">Loading pairs...</p>
           </div>
 
-          <!-- Pairs List -->
-          <div *ngIf="!isLoading" class="max-h-80 overflow-y-auto">
+          <!-- Pairs List with Infinite Scroll -->
+          <div
+            *ngIf="!isLoading || filteredPairs.length > 0"
+            class="max-h-80 overflow-y-auto"
+            (scroll)="onDropdownScroll($event)"
+          >
             <div
-              *ngIf="filteredPairs.length === 0"
+              *ngIf="filteredPairs.length === 0 && !isLoading"
               class="p-4 text-center text-gray-400 text-sm"
             >
               No pairs found
@@ -157,6 +165,25 @@
                   }}{{ pair.priceChangePercent | number : "1.2-2" }}%
                 </div>
               </div>
+            </div>
+
+            <!-- Load More Indicator -->
+            <div
+              *ngIf="isLoadingMore"
+              class="p-4 text-center border-t border-gray-700"
+            >
+              <div
+                class="animate-spin w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto"
+              ></div>
+              <p class="text-gray-400 text-xs mt-2">Loading more pairs...</p>
+            </div>
+
+            <!-- End of Results Indicator -->
+            <div
+              *ngIf="!hasMorePairs && filteredPairs.length > 0 && !isLoading"
+              class="p-2 text-center border-t border-gray-700"
+            >
+              <p class="text-gray-500 text-xs">End of results</p>
             </div>
           </div>
         </div>

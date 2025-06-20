@@ -6,6 +6,8 @@ import {
   OnInit,
   OnDestroy,
   inject,
+  ElementRef,
+  ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -43,9 +45,12 @@ interface TradingPairDisplay extends TradingPair {
   styleUrl: './market-watch.component.scss',
 })
 export class MarketWatchComponent implements OnInit, OnDestroy {
+  @ViewChild('pairDropdownContainer', { static: false })
+  private dropdownContainer!: ElementRef;
+
   private readonly destroy$ = new Subject<void>();
   private readonly tradingPairsService = inject(TradingPairsService);
-  public readonly signalRService = inject(SignalRService); // Made public for template access
+  public readonly signalRService = inject(SignalRService);
 
   // Component state
   selectedPair: TradingPairDisplay | null = null;
@@ -55,6 +60,11 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
   searchTerm = '';
   isLoading = false;
   error: string | null = null;
+
+  // Pagination state
+  isLoadingMore = false;
+  hasMorePairs = true;
+  canLoadMore = true;
 
   // Market data
   dailyHigh = 0;
@@ -67,7 +77,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initializeComponent();
     this.setupSearchDebouncing();
-    this.loadTradingPairs();
+    this.loadInitialTradingPairs();
     this.connectToSignalR();
   }
 
@@ -99,6 +109,15 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
       .subscribe((error) => {
         this.error = error;
       });
+
+    // Listen for pagination state changes
+    this.tradingPairsService.paginationState$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((state) => {
+        this.hasMorePairs = state.hasMore;
+        this.canLoadMore =
+          state.hasMore && !this.isLoading && !this.isLoadingMore;
+      });
   }
 
   private setupSearchDebouncing(): void {
@@ -109,9 +128,9 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadTradingPairs(): void {
+  private loadInitialTradingPairs(): void {
     this.tradingPairsService
-      .fetchTradingPairs()
+      .fetchTradingPairs('', 1, 20, false)
       .pipe(
         takeUntil(this.destroy$),
         catchError((error) => {
@@ -120,13 +139,90 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
           return [];
         })
       )
-      .subscribe((pairs) => {
-        this.tradingPairs = pairs.map((pair) =>
-          this.createTradingPairDisplay(pair)
-        );
-        this.filteredPairs = [...this.tradingPairs];
-        this.loadInitialMarketData();
+      .subscribe((response) => {
+        if (response && response.items) {
+          this.tradingPairs = response.items.map((pair) =>
+            this.createTradingPairDisplay(pair)
+          );
+          this.filteredPairs = [...this.tradingPairs];
+          this.loadInitialMarketData();
+        }
       });
+  }
+
+  private loadMorePairs(): void {
+    if (!this.canLoadMore || this.isLoadingMore) {
+      return;
+    }
+
+    this.isLoadingMore = true;
+
+    this.tradingPairsService
+      .loadMoreTradingPairs()
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError((error) => {
+          console.error('Failed to load more pairs:', error);
+          this.isLoadingMore = false;
+          return [];
+        })
+      )
+      .subscribe((response) => {
+        if (response && response.items) {
+          // Get only the new items that were added
+          const newPairs = response.items.slice(this.tradingPairs.length);
+          const newDisplayPairs = newPairs.map((pair) =>
+            this.createTradingPairDisplay(pair)
+          );
+
+          this.tradingPairs = [...this.tradingPairs, ...newDisplayPairs];
+
+          // Update filtered pairs if no search is active
+          if (!this.searchTerm.trim()) {
+            this.filteredPairs = [...this.tradingPairs];
+          }
+
+          // Load market data for new pairs
+          newDisplayPairs.forEach((pair) => {
+            this.loadTickerData(pair.symbol);
+          });
+        }
+
+        this.isLoadingMore = false;
+      });
+  }
+
+  private performSearch(searchTerm: string): void {
+    this.searchTerm = searchTerm;
+
+    if (!searchTerm.trim()) {
+      // Clear search - reload initial data
+      this.tradingPairsService
+        .clearSearch()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((response) => {
+          if (response && response.items) {
+            this.tradingPairs = response.items.map((pair) =>
+              this.createTradingPairDisplay(pair)
+            );
+            this.filteredPairs = [...this.tradingPairs];
+          }
+        });
+    } else {
+      // Perform search
+      this.tradingPairsService
+        .searchTradingPairs(searchTerm)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((response) => {
+          if (response && response.items) {
+            this.tradingPairs = response.items.map((pair) =>
+              this.createTradingPairDisplay(pair)
+            );
+            this.filteredPairs = [...this.tradingPairs];
+            this.loadInitialMarketData();
+          }
+        });
+    }
   }
 
   private createTradingPairDisplay(pair: TradingPair): TradingPairDisplay {
@@ -162,9 +258,9 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
   }
 
   private loadInitialMarketData(): void {
-    const popularPairs = this.tradingPairs.slice(0, 10);
-
-    popularPairs.forEach((pair) => {
+    // Load market data for first 10 pairs to avoid overwhelming the API
+    const initialPairs = this.tradingPairs.slice(0, 10);
+    initialPairs.forEach((pair) => {
       this.loadTickerData(pair.symbol);
     });
   }
@@ -295,20 +391,19 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
     }
   }
 
-  private performSearch(searchTerm: string): void {
-    if (!searchTerm.trim()) {
-      this.filteredPairs = [...this.tradingPairs];
-      return;
-    }
+  // Infinite scroll handler for dropdown
+  onDropdownScroll(event: Event): void {
+    const element = event.target as HTMLElement;
+    const threshold = 100; // Load more when 100px from bottom
 
-    const searchLower = searchTerm.toLowerCase();
-    this.filteredPairs = this.tradingPairs.filter(
-      (pair) =>
-        pair.symbol.toLowerCase().includes(searchLower) ||
-        pair.baseAsset.toLowerCase().includes(searchLower) ||
-        pair.quoteAsset.toLowerCase().includes(searchLower) ||
-        pair.displayName.toLowerCase().includes(searchLower)
-    );
+    if (
+      element.scrollTop + element.clientHeight >=
+        element.scrollHeight - threshold &&
+      this.canLoadMore &&
+      !this.isLoadingMore
+    ) {
+      this.loadMorePairs();
+    }
   }
 
   public trackBySymbol(index: number, pair: TradingPairDisplay): string {
@@ -316,7 +411,6 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
   }
 
   public onSearchChange(searchTerm: string): void {
-    this.searchTerm = searchTerm;
     this.searchSubject.next(searchTerm);
   }
 
@@ -330,7 +424,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
     this.showPairSelector = !this.showPairSelector;
     if (!this.showPairSelector) {
       this.searchTerm = '';
-      this.filteredPairs = [...this.tradingPairs];
+      // Don't reset filtered pairs when closing, keep current state
     }
   }
 
@@ -371,7 +465,7 @@ export class MarketWatchComponent implements OnInit, OnDestroy {
     if (!target.closest('.pair-selector-container')) {
       this.showPairSelector = false;
       this.searchTerm = '';
-      this.filteredPairs = [...this.tradingPairs];
+      // Keep current filtered state
     }
   }
 }
