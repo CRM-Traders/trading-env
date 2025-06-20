@@ -150,6 +150,9 @@ export class TradingPairsService {
    */
   public initializeTradingPairs(): Observable<TradingPair[]> {
     if (this.allTradingPairs.length > 0) {
+      // If we already have pairs, return them and ensure pagination state is correct
+      this.paginationState.hasMore = true; // Assume more data is available
+      this.updatePaginationState();
       return of(this.allTradingPairs);
     }
 
@@ -163,6 +166,15 @@ export class TradingPairsService {
     const state = this.isSearchMode
       ? this.searchPaginationState
       : this.paginationState;
+
+    console.log('LoadMoreTradingPairs called:', {
+      isSearchMode: this.isSearchMode,
+      currentPage: state.currentPage,
+      hasMore: state.hasMore,
+      isLoading: state.isLoading,
+      isLoadingMore: state.isLoadingMore,
+      totalLoaded: state.totalLoaded,
+    });
 
     if (state.isLoadingMore || state.isLoading || !state.hasMore) {
       return of([]);
@@ -381,6 +393,8 @@ export class TradingPairsService {
       state.isLoadingMore = true;
     } else {
       state.isLoading = true;
+      // Reset hasMore on initial load to true
+      state.hasMore = true;
     }
 
     this.updatePaginationState();
@@ -393,6 +407,8 @@ export class TradingPairsService {
     if (isSearch && this.currentSearchTerm) {
       url += `&search=${encodeURIComponent(this.currentSearchTerm)}`;
     }
+
+    console.log(`Requesting: ${url}`);
 
     return this.httpService.get<any>(url).pipe(
       tap(() =>
@@ -430,26 +446,34 @@ export class TradingPairsService {
     isSearch: boolean
   ): TradingPair[] {
     let pairs: TradingPair[] = [];
-    let hasMoreData = false;
+    let hasMoreData = true; // DEFAULT TO TRUE
 
     // Handle different response formats
     if (Array.isArray(response)) {
       // Direct array response
       pairs = this.filterAndSortPairs(response);
-      hasMoreData = pairs.length === this.DEFAULT_PAGE_SIZE;
+      // Only set hasMore to false if we get less than a full page
+      hasMoreData = pairs.length >= this.DEFAULT_PAGE_SIZE;
     } else if (response && response.items && Array.isArray(response.items)) {
       // Paginated response
       pairs = this.filterAndSortPairs(response.items);
-      hasMoreData =
-        response.hasNextPage !== undefined
-          ? response.hasNextPage
-          : pairs.length === this.DEFAULT_PAGE_SIZE;
+      // If the API explicitly tells us there's no more, respect that
+      // Otherwise, check if we got a full page
+      if (response.hasNextPage !== undefined) {
+        hasMoreData = response.hasNextPage;
+      } else {
+        hasMoreData = pairs.length >= this.DEFAULT_PAGE_SIZE;
+      }
     } else {
       // Fallback to default pairs
       console.warn('Unexpected API response format, using fallback data');
       pairs = this.createFallbackPairs();
       hasMoreData = false;
     }
+
+    console.log(
+      `ProcessApiResponse - Page: ${page}, Pairs received: ${pairs.length}, Has more: ${hasMoreData}`
+    );
 
     // Update internal state based on mode
     if (isSearch) {
@@ -481,6 +505,18 @@ export class TradingPairsService {
       // Update subject with all pairs
       this.tradingPairsSubject.next([...this.allTradingPairs]);
     }
+
+    console.log(
+      `State updated - Mode: ${
+        isSearch ? 'search' : 'normal'
+      }, Page: ${page}, Total loaded: ${
+        isSearch ? this.searchResults.length : this.allTradingPairs.length
+      }, Has more: ${
+        isSearch
+          ? this.searchPaginationState.hasMore
+          : this.paginationState.hasMore
+      }`
+    );
 
     this.updatePaginationState();
 
@@ -606,14 +642,14 @@ export class TradingPairsService {
     // Reset normal pagination state
     this.paginationState.currentPage = 0;
     this.paginationState.totalLoaded = 0;
-    this.paginationState.hasMore = true;
+    this.paginationState.hasMore = true; // ALWAYS START WITH TRUE
     this.paginationState.isLoading = false;
     this.paginationState.isLoadingMore = false;
 
     // Reset search pagination state
     this.searchPaginationState.currentPage = 0;
     this.searchPaginationState.totalLoaded = 0;
-    this.searchPaginationState.hasMore = true;
+    this.searchPaginationState.hasMore = true; // ALWAYS START WITH TRUE
     this.searchPaginationState.isLoading = false;
     this.searchPaginationState.isLoadingMore = false;
 

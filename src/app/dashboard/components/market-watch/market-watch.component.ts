@@ -465,24 +465,30 @@ export class MarketWatchComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   public onDropdownScroll(event: Event): void {
     const element = event.target as HTMLElement;
-    const threshold = 150; // Load more when 150px from bottom
+    const threshold = 100; // Load more when 100px from bottom (reduced threshold)
 
     const isNearBottom =
       element.scrollTop + element.clientHeight >=
       element.scrollHeight - threshold;
 
+    const canLoadMore = this.tradingPairsService.canLoadMore();
+    const isLoadingMore = this.tradingPairsService.isCurrentlyLoadingMore();
+
     console.log('Scroll position:', {
       scrollTop: element.scrollTop,
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
+      scrollThreshold: element.scrollHeight - threshold,
       isNearBottom,
-      canLoadMore: this.tradingPairsService.canLoadMore(),
+      canLoadMore,
+      isLoadingMore,
       searchTerm: this.searchTerm,
       isSearchMode: this.tradingPairsService.isInSearchMode(),
+      filteredPairsCount: this.filteredPairs.length,
     });
 
-    if (isNearBottom && this.tradingPairsService.canLoadMore()) {
-      console.log('Loading more trading pairs...');
+    if (isNearBottom && canLoadMore && !isLoadingMore) {
+      console.log('Triggering load more trading pairs...');
       this.loadMorePairs();
     }
   }
