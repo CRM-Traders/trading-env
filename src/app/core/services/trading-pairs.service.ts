@@ -99,7 +99,7 @@ export class TradingPairsService {
   private readonly errorSubject = new BehaviorSubject<string | null>(null);
 
   private readonly paginationState: PaginationState = {
-    currentPage: 0,
+    currentPage: 1, // Start from 1 for better page tracking
     pageSize: this.DEFAULT_PAGE_SIZE,
     totalLoaded: 0,
     hasMore: true,
@@ -108,7 +108,7 @@ export class TradingPairsService {
   };
 
   private readonly searchPaginationState: PaginationState = {
-    currentPage: 0,
+    currentPage: 1, // Start from 1 for better page tracking
     pageSize: this.DEFAULT_PAGE_SIZE,
     totalLoaded: 0,
     hasMore: true,
@@ -156,6 +156,10 @@ export class TradingPairsService {
       return of(this.allTradingPairs);
     }
 
+    // Reset pagination state for initial load
+    this.paginationState.currentPage = 1;
+    this.paginationState.hasMore = true;
+
     return this.loadTradingPairsPage(1, true, false);
   }
 
@@ -177,10 +181,12 @@ export class TradingPairsService {
     });
 
     if (state.isLoadingMore || state.isLoading || !state.hasMore) {
+      console.log('Cannot load more - already loading or no more data');
       return of([]);
     }
 
     const nextPage = state.currentPage + 1;
+    console.log(`Loading page ${nextPage}`);
     return this.loadTradingPairsPage(nextPage, false, this.isSearchMode);
   }
 
@@ -197,7 +203,7 @@ export class TradingPairsService {
     // Reset search state
     this.isSearchMode = true;
     this.searchResults.length = 0;
-    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.currentPage = 1;
     this.searchPaginationState.totalLoaded = 0;
     this.searchPaginationState.hasMore = true;
 
@@ -213,7 +219,7 @@ export class TradingPairsService {
     this.searchResults.length = 0;
 
     // Reset search pagination state
-    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.currentPage = 1;
     this.searchPaginationState.totalLoaded = 0;
     this.searchPaginationState.hasMore = true;
 
@@ -239,7 +245,9 @@ export class TradingPairsService {
     const state = this.isSearchMode
       ? this.searchPaginationState
       : this.paginationState;
-    return state.hasMore && !state.isLoading && !state.isLoadingMore;
+    const canLoad = state.hasMore && !state.isLoading && !state.isLoadingMore;
+    console.log('canLoadMore:', canLoad, 'state:', state);
+    return canLoad;
   }
 
   /**
@@ -393,8 +401,6 @@ export class TradingPairsService {
       state.isLoadingMore = true;
     } else {
       state.isLoading = true;
-      // Reset hasMore on initial load to true
-      state.hasMore = true;
     }
 
     this.updatePaginationState();
@@ -411,26 +417,40 @@ export class TradingPairsService {
     console.log(`Requesting: ${url}`);
 
     return this.httpService.get<any>(url).pipe(
-      tap(() =>
-        console.log(
-          `Loading page ${page}, isLoadingMore: ${isLoadingMore}, isSearch: ${isSearch}, searchTerm: ${this.currentSearchTerm}`
-        )
+      tap((response) =>
+        console.log(`API Response for page ${page}:`, {
+          isArray: Array.isArray(response),
+          hasItems: response?.items !== undefined,
+          itemsLength:
+            response?.items?.length ||
+            (Array.isArray(response) ? response.length : 0),
+          hasNextPage: response?.hasNextPage,
+        })
       ),
       map((response) =>
         this.processApiResponse(response, page, isLoadingMore, isSearch)
       ),
-      tap((pairs) =>
-        console.log(`Loaded ${pairs.length} pairs for page ${page}`)
-      ),
+      tap((pairs) => {
+        console.log(`Processed ${pairs.length} pairs for page ${page}`);
+        console.log(`Updated state after processing:`, {
+          currentPage: state.currentPage,
+          hasMore: state.hasMore,
+          totalLoaded: state.totalLoaded,
+        });
+      }),
       shareReplay(1),
       finalize(() => {
         state.isLoading = false;
         state.isLoadingMore = false;
         this.updatePaginationState();
+        console.log('Finalized loading state:', state);
       }),
       catchError((error) => {
         console.error(`Error loading trading pairs page ${page}:`, error);
         this.handleApiError(error);
+        state.isLoading = false;
+        state.isLoadingMore = false;
+        this.updatePaginationState();
         return of([]);
       })
     );
@@ -484,7 +504,12 @@ export class TradingPairsService {
         this.searchResults.length = 0;
         this.searchResults.push(...pairs);
       }
-      state.currentPage = page;
+
+      // CRITICAL: Update the current page ONLY after successful load
+      if (pairs.length > 0) {
+        state.currentPage = page;
+      }
+
       state.totalLoaded = this.searchResults.length;
       state.hasMore = hasMoreData;
 
@@ -493,12 +518,19 @@ export class TradingPairsService {
     } else {
       const state = this.paginationState;
       if (isLoadingMore) {
+        // Append new pairs
         this.allTradingPairs.push(...pairs);
       } else {
+        // Replace all pairs (initial load)
         this.allTradingPairs.length = 0;
         this.allTradingPairs.push(...pairs);
       }
-      state.currentPage = page;
+
+      // CRITICAL: Update the current page ONLY after successful load
+      if (pairs.length > 0) {
+        state.currentPage = page;
+      }
+
       state.totalLoaded = this.allTradingPairs.length;
       state.hasMore = hasMoreData;
 
@@ -507,9 +539,11 @@ export class TradingPairsService {
     }
 
     console.log(
-      `State updated - Mode: ${
-        isSearch ? 'search' : 'normal'
-      }, Page: ${page}, Total loaded: ${
+      `State updated - Mode: ${isSearch ? 'search' : 'normal'}, Current Page: ${
+        isSearch
+          ? this.searchPaginationState.currentPage
+          : this.paginationState.currentPage
+      }, Total loaded: ${
         isSearch ? this.searchResults.length : this.allTradingPairs.length
       }, Has more: ${
         isSearch
@@ -640,14 +674,14 @@ export class TradingPairsService {
     this.isSearchMode = false;
 
     // Reset normal pagination state
-    this.paginationState.currentPage = 0;
+    this.paginationState.currentPage = 1;
     this.paginationState.totalLoaded = 0;
     this.paginationState.hasMore = true; // ALWAYS START WITH TRUE
     this.paginationState.isLoading = false;
     this.paginationState.isLoadingMore = false;
 
     // Reset search pagination state
-    this.searchPaginationState.currentPage = 0;
+    this.searchPaginationState.currentPage = 1;
     this.searchPaginationState.totalLoaded = 0;
     this.searchPaginationState.hasMore = true; // ALWAYS START WITH TRUE
     this.searchPaginationState.isLoading = false;
